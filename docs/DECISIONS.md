@@ -8,7 +8,8 @@
 | 項目 | 決定 |
 |---|---|
 | Unity 版本 | 6000.0.43f1（三人相同） |
-| Render Pipeline | **待確認**：檢查 `Packages/manifest.json` 是否有 `com.unity.render-pipelines.universal` |
+| Render Pipeline | **URP**（`com.unity.render-pipelines.universal` 17.0.4，使用 `Assets/Settings/PC_RPAsset`） |
+| 畫面後製效果 | 使用 URP 內建的 Volume（`UnityEngine.Rendering` / `UnityEngine.Rendering.Universal`），**不要用** Post Processing v2（`PostProcessVolume`，在 URP 中沒有作用） |
 | 輸入系統 | 新版 Input System；程式用 `Keyboard.current` / `Mouse.current` 直接讀取。Player Settings 的 Active Input Handling 設為 **Both**，避免組員 AI 產生的舊版 `Input.GetKey` 程式直接報錯 |
 | 攝影機 | 只用一台 Main Camera，切換第一／第三人稱時移動它的位置（小地圖與畫面效果都抓得到同一台） |
 
@@ -69,7 +70,7 @@
 | Bupropion | **待確認** | 企劃書 6.3 沒有定義效果 |
 
 ## 待確認
-- [ ] Render Pipeline（URP 或 Built-in）
+- [x] Render Pipeline → URP
 - [ ] Bupropion 的遊戲效果
 - [ ] 寶箱 7–10 的題目與獎勵（企劃書只列了 6 題）
 - [ ] 大型菸怪的煙霧半徑實際數值

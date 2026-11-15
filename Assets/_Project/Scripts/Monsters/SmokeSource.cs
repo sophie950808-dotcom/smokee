@@ -2,41 +2,66 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// �����ӷ��G�۰ʵ��U�����M��A�� A �խ��� ExposureSystem �p��P���a���Z��
+/// 煙霧來源。掛在開場吸菸 NPC 與每一隻菸怪身上，ExposureSystem 依距離計算暴露值。
+/// 啟用時自動加入 All，停用時自動移除。
 /// </summary>
 public class SmokeSource : MonoBehaviour
 {
-    // ����M��A��K ExposureSystem �H��Ū��
-    public static readonly List<SmokeSource> All = new List<SmokeSource>();
+    private static readonly List<SmokeSource> _all = new List<SmokeSource>();
 
-    [Header("�����d��")]
-    [Tooltip("�����v�T�b�| (���: ���ءA�����w�] 50)")]
-    public float radius = 50f;
+    [Header("煙霧設定")]
+    [Tooltip("煙霧影響半徑（公尺）。小型菸怪預設 50，大型菸怪暫定 75")]
+    [SerializeField] private float _radius = 50f;
 
-    [Tooltip("�O�_���b���o����")]
-    public bool isActive = true;
+    [Tooltip("是否正在冒煙。false 時不影響暴露值（菸怪被擊敗時設為 false）")]
+    [SerializeField] private bool _isEmitting = true;
+
+    /// <summary>目前所有啟用中的煙霧來源（供 A 與小地圖讀取）。</summary>
+    public static IReadOnlyList<SmokeSource> All => _all;
+
+    /// <summary>煙霧影響半徑（公尺）。</summary>
+    public float Radius
+    {
+        get => _radius;
+        set => _radius = Mathf.Max(0f, value);
+    }
+
+    /// <summary>是否正在冒煙。false 時不影響暴露值。</summary>
+    public bool IsEmitting
+    {
+        get => _isEmitting;
+        set => _isEmitting = value;
+    }
+
+    // 相容性別名：確保 B 組員程式碼中的 isActive 也能無縫使用
+    public bool isActive
+    {
+        get => _isEmitting;
+        set => _isEmitting = value;
+    }
 
     private void OnEnable()
     {
-        if (!All.Contains(this))
+        if (!_all.Contains(this))
         {
-            All.Add(this);
+            _all.Add(this);
         }
     }
 
     private void OnDisable()
     {
-        All.Remove(this);
+        _all.Remove(this);
     }
 
     private void OnDestroy()
     {
-        All.Remove(this);
+        _all.Remove(this);
     }
 
     private void OnDrawGizmosSelected()
     {
-        Gizmos.color = new Color(0.5f, 0.5f, 0.5f, 0.25f);
-        Gizmos.DrawWireSphere(transform.position, radius);
+        // 在 Scene 視窗選取物件時，畫出煙霧範圍方便調整
+        Gizmos.color = new Color(0.5f, 0.5f, 0.5f, 0.6f);
+        Gizmos.DrawWireSphere(transform.position, _radius);
     }
 }
