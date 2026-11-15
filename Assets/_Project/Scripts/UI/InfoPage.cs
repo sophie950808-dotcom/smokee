@@ -1,16 +1,35 @@
+
 using UnityEngine;
 
 public class InfoPage : MonoBehaviour
 {
-    // Start is called once before the first execution of Update after the MonoBehaviour is created
-    void Start()
+    [Header("衛教資訊面板")]
+    [SerializeField] private GameObject infoPagePanel;
+
+    // 進入主選單時隱藏衛教資訊頁
+    private void Start()
     {
-        
+        if (infoPagePanel != null)
+        {
+            infoPagePanel.SetActive(false);
+        }
     }
 
-    // Update is called once per frame
-    void Update()
+    // 開啟衛教資訊頁
+    public void OpenInfoPage()
     {
-        
+        if (infoPagePanel != null)
+        {
+            infoPagePanel.SetActive(true);
+        }
+    }
+
+    // 返回主選單
+    public void CloseInfoPage()
+    {
+        if (infoPagePanel != null)
+        {
+            infoPagePanel.SetActive(false);
+        }
     }
 }
