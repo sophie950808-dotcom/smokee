@@ -36,7 +36,15 @@ internal static class C2OpeningDialogSetup
         GameObject[] roots = scene.GetRootGameObjects();
         if (roots.Any(root => root.GetComponentInChildren<C2OpeningDialog>(true)))
         {
-            Debug.Log("C2 測試場景已有開場對話框。");
+            C2OpeningDialogPreview existingPreview = roots
+                .Select(root => root.GetComponentInChildren<C2OpeningDialogPreview>(true))
+                .FirstOrDefault(preview => preview);
+            if (!existingPreview)
+                throw new InvalidOperationException("找不到 C2 測試場景的結果顯示元件。");
+
+            if (ConnectTestRouteManager(scene, existingPreview))
+                SaveTestScene(scene);
+            Debug.Log("C2 測試場景已連接 RouteManager。");
             return;
         }
 
@@ -100,14 +108,34 @@ internal static class C2OpeningDialogSetup
         result.gameObject.SetActive(false);
         C2OpeningDialogPreview preview = canvasObject.AddComponent<C2OpeningDialogPreview>();
         SerializedObject previewFields = new SerializedObject(preview);
-        previewFields.FindProperty("_dialog").objectReferenceValue = panel.GetComponent<C2OpeningDialog>();
         previewFields.FindProperty("_result").objectReferenceValue = result;
         previewFields.ApplyModifiedPropertiesWithoutUndo();
-
-        if (!EditorSceneManager.SaveScene(scene))
-            throw new InvalidOperationException("Unity 無法儲存 C2 測試場景。");
+        ConnectTestRouteManager(scene, preview);
+        SaveTestScene(scene);
 
         Debug.Log("C2 開場對話框和測試場景已儲存。", panel);
+    }
+
+    private static bool ConnectTestRouteManager(Scene scene, C2OpeningDialogPreview preview)
+    {
+        RouteManager[] managers = scene.GetRootGameObjects()
+            .SelectMany(root => root.GetComponentsInChildren<RouteManager>(true))
+            .ToArray();
+        if (managers.Length > 1)
+            throw new InvalidOperationException("C2 測試場景只能有一個 RouteManager。");
+
+        RouteManager manager = managers.Length == 1
+            ? managers[0]
+            : new GameObject("RouteManager").AddComponent<RouteManager>();
+        var previewFields = new SerializedObject(preview);
+        previewFields.FindProperty("_routeManager").objectReferenceValue = manager;
+        return previewFields.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    private static void SaveTestScene(Scene scene)
+    {
+        if (!EditorSceneManager.SaveScene(scene))
+            throw new InvalidOperationException("Unity 無法儲存 C2 測試場景。");
     }
 
     [MenuItem("C2/驗證接受與拒絕按鈕")]
@@ -118,13 +146,14 @@ internal static class C2OpeningDialogSetup
             throw new InvalidOperationException("請在 C2 測試場景進入 Play Mode，並保持對話框開啟。");
 
         TMP_Text result = dialog.transform.parent.Find("C2PreviewResult").GetComponent<TMP_Text>();
-        VerifyChoice(dialog, result, "AcceptSmoke", "已選擇：接受香菸");
+        VerifyChoice(dialog, result, "AcceptSmoke", OpeningRoute.AcceptSmoke, "已選擇：接受香菸");
         dialog.gameObject.SetActive(true);
-        VerifyChoice(dialog, result, "RefuseSmoke", "已選擇：拒絕香菸");
-        Debug.Log("C2 驗證通過：接受香菸、拒絕香菸皆能送出各自的選擇。");
+        VerifyChoice(dialog, result, "RefuseSmoke", OpeningRoute.RefuseSmoke, "已選擇：拒絕香菸");
+        Debug.Log("C2 驗證通過：RouteManager 已收到接受香菸和拒絕香菸，並發出對應的路線事件。");
     }
 
-    private static void VerifyChoice(C2OpeningDialog dialog, TMP_Text result, string buttonName, string expected)
+    private static void VerifyChoice(C2OpeningDialog dialog, TMP_Text result, string buttonName,
+        OpeningRoute expectedRoute, string expectedText)
     {
         RectTransform button = (RectTransform)dialog.transform.Find(buttonName);
         Canvas.ForceUpdateCanvases();
@@ -140,7 +169,8 @@ internal static class C2OpeningDialogSetup
             throw new InvalidOperationException($"游標無法點到 {buttonName}。");
 
         ExecuteEvents.Execute(button.gameObject, click, ExecuteEvents.pointerClickHandler);
-        if (dialog.gameObject.activeSelf || !result.gameObject.activeSelf || result.text != expected)
+        if (dialog.gameObject.activeSelf || RouteManager.Instance.ChosenRoute != expectedRoute
+            || !result.gameObject.activeSelf || result.text != expectedText)
             throw new InvalidOperationException($"{buttonName} 未送出預期選擇。");
     }
 
