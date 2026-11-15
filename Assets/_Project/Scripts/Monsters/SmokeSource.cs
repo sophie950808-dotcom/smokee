@@ -16,7 +16,7 @@ public class SmokeSource : MonoBehaviour
     [Tooltip("是否正在冒煙。false 時不影響暴露值（菸怪被擊敗時設為 false）")]
     [SerializeField] private bool _isEmitting = true;
 
-    /// <summary>目前所有啟用中的煙霧來源。</summary>
+    /// <summary>目前所有啟用中的煙霧來源（供 A 與小地圖讀取）。</summary>
     public static IReadOnlyList<SmokeSource> All => _all;
 
     /// <summary>煙霧影響半徑（公尺）。</summary>
@@ -33,6 +33,13 @@ public class SmokeSource : MonoBehaviour
         set => _isEmitting = value;
     }
 
+    // 相容性別名：確保 B 組員程式碼中的 isActive 也能無縫使用
+    public bool isActive
+    {
+        get => _isEmitting;
+        set => _isEmitting = value;
+    }
+
     private void OnEnable()
     {
         if (!_all.Contains(this))
@@ -42,6 +49,11 @@ public class SmokeSource : MonoBehaviour
     }
 
     private void OnDisable()
+    {
+        _all.Remove(this);
+    }
+
+    private void OnDestroy()
     {
         _all.Remove(this);
     }

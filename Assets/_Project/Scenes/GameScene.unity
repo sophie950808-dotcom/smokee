@@ -69581,6 +69581,120 @@ Transform:
   m_CorrespondingSourceObject: {fileID: 2622712201488316151, guid: add1098d17f4cac4c8f9717e59e65f98, type: 3}
   m_PrefabInstance: {fileID: 2145861145}
   m_PrefabAsset: {fileID: 0}
+--- !u!1001 &1787735722558068155
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 6115456451903345744, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 25.06
+      objectReference: {fileID: 0}
+    - target: {fileID: 6115456451903345744, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 1.0728054
+      objectReference: {fileID: 0}
+    - target: {fileID: 6115456451903345744, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -5.17
+      objectReference: {fileID: 0}
+    - target: {fileID: 6115456451903345744, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 6115456451903345744, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6115456451903345744, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6115456451903345744, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6115456451903345744, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6115456451903345744, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 6115456451903345744, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 8919644060263788489, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+      propertyPath: m_Name
+      value: SmokeMonster_Small
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+--- !u!1001 &4786692806553130545
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    serializedVersion: 3
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 2872724004917286999, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 25.06
+      objectReference: {fileID: 0}
+    - target: {fileID: 2872724004917286999, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 1.0728054
+      objectReference: {fileID: 0}
+    - target: {fileID: 2872724004917286999, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_LocalPosition.z
+      value: -5.17
+      objectReference: {fileID: 0}
+    - target: {fileID: 2872724004917286999, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 2872724004917286999, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2872724004917286999, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2872724004917286999, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2872724004917286999, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2872724004917286999, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 2872724004917286999, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5968696348237771175, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
+      propertyPath: m_Name
+      value: SmokeMonster_Large
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+    m_RemovedGameObjects: []
+    m_AddedGameObjects: []
+    m_AddedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: 029ccb1fd63783045ad86b3136665409, type: 3}
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0
@@ -69593,3 +69707,5 @@ SceneRoots:
   - {fileID: 1345617124}
   - {fileID: 459035032}
   - {fileID: 503211592}
+  - {fileID: 1787735722558068155}
+  - {fileID: 4786692806553130545}
