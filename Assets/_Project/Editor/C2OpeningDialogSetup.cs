@@ -3,10 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using TMPro;
 using UnityEditor;
-using UnityEditor.Events;
 using UnityEditor.SceneManagement;
 using UnityEngine;
-using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.SceneManagement;
@@ -14,11 +12,11 @@ using UnityEngine.UI;
 
 internal static class C2OpeningDialogSetup
 {
-    private const string ScenePath = "Assets/_Project/Scenes/C2_OpeningDialogTest.unity";
+    private const string ScenePath = "Assets/_Project/Scenes/TestScene_C.unity";
     private const string PrefabPath = "Assets/_Project/Prefabs/C2OpeningDialog.prefab";
     private const string FontPath = "Assets/_Project/UI/Fonts/NotoSansTC-VariableFont_wght SDF.asset";
 
-    [MenuItem("C2/建立開場對話測試場景")]
+    [MenuItem("C2/在 TestScene_C 設定開場對話測試")]
     private static void SetUp()
     {
         if (EditorApplication.isPlayingOrWillChangePlaymode)
@@ -48,8 +46,9 @@ internal static class C2OpeningDialogSetup
             return;
         }
 
-        if (AssetDatabase.LoadMainAssetAtPath(PrefabPath))
-            throw new InvalidOperationException("已有同名 C2 Prefab，請先檢查其用途。");
+        GameObject prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
+        if (!prefab || !prefab.GetComponent<C2OpeningDialog>())
+            throw new InvalidOperationException("找不到 C2 開場對話框 Prefab。");
 
         TMP_FontAsset font = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontPath);
         if (!font)
@@ -61,9 +60,11 @@ internal static class C2OpeningDialogSetup
         if (!canvasObject.GetComponent<RectTransform>())
             throw new InvalidOperationException("OpeningDialogCanvas 缺少 RectTransform。");
 
-        Canvas canvas = canvasObject.GetComponent<Canvas>() ?? canvasObject.AddComponent<Canvas>();
+        if (!canvasObject.TryGetComponent(out Canvas canvas))
+            canvas = canvasObject.AddComponent<Canvas>();
         canvas.renderMode = RenderMode.ScreenSpaceOverlay;
-        CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>() ?? canvasObject.AddComponent<CanvasScaler>();
+        if (!canvasObject.TryGetComponent(out CanvasScaler scaler))
+            scaler = canvasObject.AddComponent<CanvasScaler>();
         scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
         scaler.referenceResolution = new Vector2(1920, 1080);
         scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
@@ -74,33 +75,7 @@ internal static class C2OpeningDialogSetup
         if (!roots.Any(root => root.GetComponentInChildren<EventSystem>(true)))
             new GameObject("EventSystem", typeof(EventSystem), typeof(InputSystemUIInputModule));
 
-        RectTransform panel = CreateRect("C2OpeningDialog", canvas.transform, new Vector2(0.16f, 0.09f),
-            new Vector2(0.84f, 0.09f), Vector2.zero, new Vector2(0, 292));
-        panel.gameObject.AddComponent<Image>().color = new Color32(24, 29, 35, 249);
-        C2OpeningDialog dialog = panel.gameObject.AddComponent<C2OpeningDialog>();
-
-        CreateText("Speaker", panel, new Vector2(0, 0.73f), new Vector2(1, 0.91f),
-            new Vector2(42, 0), new Vector2(-42, 0), font, "NPC", 28, TextAlignmentOptions.MidlineLeft)
-            .color = new Color32(180, 197, 205, 255);
-        CreateText("Question", panel, new Vector2(0, 0.43f), new Vector2(1, 0.73f),
-            new Vector2(42, 0), new Vector2(-42, 0), font, "要來一根香菸嗎？", 54, TextAlignmentOptions.MidlineLeft);
-        Button accept = CreateButton("AcceptSmoke", panel, 0, 0.5f, 42, -10,
-            font, "接受香菸", new Color32(70, 76, 85, 255), dialog.AcceptSmoke);
-        Button refuse = CreateButton("RefuseSmoke", panel, 0.5f, 1, 10, -42,
-            font, "拒絕香菸", new Color32(42, 91, 85, 255), dialog.RefuseSmoke);
-        Navigation acceptNavigation = accept.navigation;
-        acceptNavigation.mode = Navigation.Mode.Explicit;
-        acceptNavigation.selectOnRight = refuse;
-        accept.navigation = acceptNavigation;
-        Navigation refuseNavigation = refuse.navigation;
-        refuseNavigation.mode = Navigation.Mode.Explicit;
-        refuseNavigation.selectOnLeft = accept;
-        refuse.navigation = refuseNavigation;
-
-        PrefabUtility.SaveAsPrefabAssetAndConnect(panel.gameObject, PrefabPath, InteractionMode.UserAction,
-            out bool prefabSaved);
-        if (!prefabSaved)
-            throw new InvalidOperationException("Unity 無法儲存 C2 對話框 Prefab。");
+        GameObject panel = (GameObject)PrefabUtility.InstantiatePrefab(prefab, canvas.transform);
 
         TMP_Text result = CreateText("C2PreviewResult", canvas.transform, new Vector2(0.16f, 0.09f),
             new Vector2(0.84f, 0.09f), Vector2.zero, new Vector2(0, 116), font, "",
@@ -113,7 +88,7 @@ internal static class C2OpeningDialogSetup
         ConnectTestRouteManager(scene, preview);
         SaveTestScene(scene);
 
-        Debug.Log("C2 開場對話框和測試場景已儲存。", panel);
+        Debug.Log("C2 開場對話測試已儲存於 TestScene_C。", panel);
     }
 
     private static bool ConnectTestRouteManager(Scene scene, C2OpeningDialogPreview preview)
@@ -143,7 +118,7 @@ internal static class C2OpeningDialogSetup
     {
         C2OpeningDialog dialog = UnityEngine.Object.FindFirstObjectByType<C2OpeningDialog>();
         if (!EditorApplication.isPlaying || SceneManager.GetActiveScene().path != ScenePath || !dialog)
-            throw new InvalidOperationException("請在 C2 測試場景進入 Play Mode，並保持對話框開啟。");
+            throw new InvalidOperationException("請在 TestScene_C 進入 Play Mode，並保持 C2 對話框開啟。");
 
         TMP_Text result = dialog.transform.parent.Find("C2PreviewResult").GetComponent<TMP_Text>();
         VerifyChoice(dialog, result, "AcceptSmoke", OpeningRoute.AcceptSmoke, "已選擇：接受香菸");
@@ -197,27 +172,5 @@ internal static class C2OpeningDialogSetup
         text.alignment = alignment;
         text.raycastTarget = false;
         return text;
-    }
-
-    private static Button CreateButton(string name, Transform parent, float left, float right,
-        float leftPadding, float rightPadding, TMP_FontAsset font, string label, Color color, UnityAction onClick)
-    {
-        RectTransform rect = CreateRect(name, parent, new Vector2(left, 0.13f), new Vector2(right, 0.13f),
-            new Vector2(leftPadding, 0), new Vector2(rightPadding, 78));
-        Image background = rect.gameObject.AddComponent<Image>();
-        background.color = color;
-        Button button = rect.gameObject.AddComponent<Button>();
-        button.targetGraphic = background;
-        ColorBlock colors = button.colors;
-        colors.highlightedColor = Color.white;
-        colors.selectedColor = Color.white;
-        colors.pressedColor = new Color(0.72f, 0.72f, 0.72f);
-        colors.colorMultiplier = 1.2f;
-        colors.normalColor = new Color(0.83f, 0.83f, 0.83f);
-        button.colors = colors;
-        CreateText("Label", rect, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, font,
-            label, 35, TextAlignmentOptions.Center);
-        UnityEventTools.AddPersistentListener(button.onClick, onClick);
-        return button;
     }
 }
