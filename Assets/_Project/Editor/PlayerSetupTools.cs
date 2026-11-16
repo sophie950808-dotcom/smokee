@@ -8,6 +8,10 @@ using UnityEngine.SceneManagement;
 /// A 的 Editor 選單工具（Unity 上方選單 Tools/Smokee）。
 /// 1. 建立 Player Prefab（膠囊外型，元件與引用都設定好）
 /// 2. 在 TestScene_A 建立測試環境（地板、牆、窄走廊、方塊）並放入 Player
+/// 3. A4：在 Player Prefab 補上 PlayerAttack／PlayerInteractor，並在 TestScene_A 放測試用假目標與互動物件
+/// 4. A5：在 TestScene_A 放 GameManager（開發者模式、自動開始倒數）與開發者工具
+/// 5. A9：在 TestScene_A 放 RouteManager 與死巷出口測試方塊
+/// 6. A6：Player Prefab 補上 ExposureSystem、地板擴大到 200 x 200、放 2 個假煙霧來源
 /// </summary>
 public static class PlayerSetupTools
 {
@@ -16,6 +20,237 @@ public static class PlayerSetupTools
     private const string MaterialFolder = "Assets/_Project/Materials/TestA";
     private const string ScenePath = "Assets/_Project/Scenes/TestScene_A.unity";
     private const string EnvironmentRootName = "TestEnvironment";
+    private const string A4RootName = "A4_TestObjects";
+    private const string A9ExitName = "A9_AlleyExit";
+    private const string A6RootName = "A6_SmokeSources";
+    private const float FloorSize = 200f;
+    private static readonly string[] FloorAndOuterWallNames = { "Floor", "Wall_North", "Wall_South", "Wall_East", "Wall_West" };
+
+    /// <summary>選單：A5。在 TestScene_A 放 GameManager，勾選 devMode 與 autoStartRound，並掛上 DevOverlay、DevHotkeys。</summary>
+    [MenuItem("Tools/Smokee/A - 放置 A5 GameManager（開發者模式）")]
+    public static void BuildA5GameManagerMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+        // 移除場景裡舊的 GameManager（避免出現兩個）
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.GetComponentInChildren<GameManager>(true) != null)
+            {
+                Object.DestroyImmediate(rootObject);
+            }
+        }
+
+        GameObject managerObject = new GameObject("GameManager");
+        GameManager gameManager = managerObject.AddComponent<GameManager>();
+        managerObject.AddComponent<DevOverlay>();
+        managerObject.AddComponent<DevHotkeys>();
+
+        SerializedObject serializedManager = new SerializedObject(gameManager);
+        serializedManager.FindProperty("_devMode").boolValue = true;
+        serializedManager.FindProperty("_autoStartRound").boolValue = true;
+        serializedManager.ApplyModifiedPropertiesWithoutUndo();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Selection.activeGameObject = managerObject;
+
+        EditorUtility.DisplayDialog("完成",
+            "GameManager 已放進 TestScene_A 並存檔（devMode、autoStartRound 已勾選）。\n按 Play 後左上角會出現開發者面板。",
+            "好");
+    }
+
+    /// <summary>
+    /// 選單：A9。在 TestScene_A 放 RouteManager，並在窄走廊盡頭放一個綠色的死巷出口方塊（Trigger＋AlleyExitTrigger）。
+    /// 不會動到 GameManager（autoStartRound 保持勾選，用來確認有 RouteManager 時會被忽略）。
+    /// </summary>
+    [MenuItem("Tools/Smokee/A - 放置 A9 RouteManager 與死巷出口")]
+    public static void BuildA9RouteTestMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+        // 移除舊的 RouteManager 與舊的 A9 出口（避免重複）
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.name == A9ExitName || rootObject.GetComponentInChildren<RouteManager>(true) != null)
+            {
+                Object.DestroyImmediate(rootObject);
+            }
+        }
+
+        GameObject routeObject = new GameObject("RouteManager");
+        routeObject.AddComponent<RouteManager>();
+
+        // 窄走廊在 x = 5～7.5、z = -1～11，出口放在走廊北端
+        Material exitMaterial = GetOrCreateMaterial("TestA_AlleyExit", new Color(0.3f, 1f, 0.4f));
+        GameObject exit = CreateBlock(A9ExitName, null, new Vector3(6.25f, 1.5f, 11.5f), new Vector3(2f, 3f, 0.3f), exitMaterial);
+        exit.GetComponent<Collider>().isTrigger = true;
+        exit.AddComponent<AlleyExitTrigger>();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Selection.activeGameObject = routeObject;
+
+        EditorUtility.DisplayDialog("完成",
+            "RouteManager 與死巷出口（綠色方塊，在窄走廊北端）已放進 TestScene_A 並存檔。\n" +
+            "按 Play 後用 F5／F6 選路線、F7 結束開場。",
+            "好");
+    }
+
+    /// <summary>選單：A4 測試物件。在 Player Prefab 補上攻擊／互動元件，並在 TestScene_A 放測試物件。</summary>
+    [MenuItem("Tools/Smokee/A - 放置 A4 攻擊／互動測試物件")]
+    public static void BuildA4TestObjectsMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        // 1. Player Prefab：沒有就新建（新建的已包含兩個元件），有就只補上缺少的元件
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null)
+        {
+            CreatePlayerPrefab();
+        }
+        else
+        {
+            AddA4ComponentsToExistingPrefab();
+        }
+
+        // 2. 開啟 TestScene_A，移除上次放的 A4 測試物件，重新放
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        bool hasPlayer = false;
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.name == A4RootName)
+            {
+                Object.DestroyImmediate(rootObject);
+            }
+            else if (rootObject.GetComponent<PlayerController>() != null)
+            {
+                hasPlayer = true;
+            }
+        }
+
+        BuildA4TestObjects();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+
+        string message = "A4 測試物件已放好並存檔。\n按 Play 就可以測試攻擊與互動。";
+        if (!hasPlayer)
+        {
+            message += "\n\n注意：場景裡沒有 Player。請先執行「A - 建立 TestScene_A 測試環境」。";
+        }
+
+        EditorUtility.DisplayDialog("完成", message, "好");
+    }
+
+    /// <summary>打開現有的 Player Prefab，補上缺少的 PlayerAttack／PlayerInteractor，其他設定保留。</summary>
+    private static void AddA4ComponentsToExistingPrefab()
+    {
+        GameObject contents = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            if (contents.GetComponent<PlayerController>() == null)
+            {
+                Debug.LogWarning("PlayerSetupTools：Player Prefab 上沒有 PlayerController，無法加攻擊／互動元件。");
+                return;
+            }
+
+            if (contents.GetComponent<PlayerAttack>() == null)
+            {
+                contents.AddComponent<PlayerAttack>();
+            }
+
+            if (contents.GetComponent<PlayerInteractor>() == null)
+            {
+                contents.AddComponent<PlayerInteractor>();
+            }
+
+            if (contents.GetComponent<TargetMarker>() == null)
+            {
+                contents.AddComponent<TargetMarker>();
+            }
+
+            PrefabUtility.SaveAsPrefabAsset(contents, PrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(contents);
+        }
+    }
+
+    /// <summary>
+    /// 放 A4 測試物件（Player 出生在 (0, 0, -10)，面向 +Z）：
+    /// 前方 2 個 TestDummy、東邊短牆後面 1 個 TestDummy 與 1 個 TestInteractable（測試隔牆），
+    /// 西邊 1 個 TestInteractable，以及暫時的互動提示 OnGUI。
+    /// </summary>
+    private static void BuildA4TestObjects()
+    {
+        EnsureFolder(MaterialFolder);
+        Material wallMaterial = GetOrCreateMaterial("TestA_Wall", new Color(0.85f, 0.8f, 0.7f));
+        Material dummyMaterial = GetOrCreateMaterial("TestA_Dummy", Color.white);
+        Material interactMaterial = GetOrCreateMaterial("TestA_Interactable", new Color(0.2f, 0.8f, 0.3f));
+
+        Transform root = new GameObject(A4RootName).transform;
+
+        // 前方的兩個假目標（高 2 公尺）
+        CreateDummy("Dummy_Front", root, new Vector3(0f, 1f, -7.5f), dummyMaterial);
+        CreateDummy("Dummy_Left", root, new Vector3(-2.5f, 1f, -7.5f), dummyMaterial);
+
+        // 東邊一面短牆，牆後面放假目標和互動物件：站在牆西側應該打不到、也不能互動
+        CreateBlock("A4_Wall", root, new Vector3(7f, 1.5f, -10f), new Vector3(0.3f, 3f, 3f), wallMaterial);
+        CreateDummy("Dummy_BehindWall", root, new Vector3(8f, 1f, -9.5f), dummyMaterial);
+        CreateInteractable("Interactable_BehindWall", root, new Vector3(8f, 0.5f, -11f), interactMaterial);
+
+        // 西邊的互動物件（沒被擋住）
+        CreateInteractable("Interactable_Test", root, new Vector3(-4f, 0.5f, -10f), interactMaterial);
+
+        // 暫時的互動提示（正式 HUD 由 C 負責）
+        GameObject prompt = new GameObject("DebugInteractPrompt");
+        prompt.transform.SetParent(root, false);
+        prompt.AddComponent<DebugInteractPrompt>();
+    }
+
+    private static void CreateDummy(string name, Transform parent, Vector3 position, Material material)
+    {
+        GameObject dummy = CreateBlock(name, parent, position, new Vector3(0.8f, 2f, 0.8f), material);
+        dummy.AddComponent<TestDummy>();
+    }
+
+    private static void CreateInteractable(string name, Transform parent, Vector3 position, Material material)
+    {
+        GameObject interactable = CreateBlock(name, parent, position, Vector3.one, material);
+        interactable.AddComponent<TestInteractable>();
+    }
 
     /// <summary>選單：建立（或覆蓋）Player Prefab。</summary>
     [MenuItem("Tools/Smokee/A - 建立 Player Prefab")]
@@ -107,6 +342,10 @@ public static class PlayerSetupTools
         characterController.stepOffset = 0.3f;
 
         PlayerController playerController = root.AddComponent<PlayerController>();
+        root.AddComponent<PlayerAttack>();
+        root.AddComponent<PlayerInteractor>();
+        root.AddComponent<TargetMarker>();
+        root.AddComponent<ExposureSystem>();
 
         // 身體：膠囊外型（拿掉膠囊自帶的碰撞體，碰撞交給 CharacterController）
         GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -154,14 +393,7 @@ public static class PlayerSetupTools
 
         Transform root = new GameObject(EnvironmentRootName).transform;
 
-        // 地板 40 x 40，上表面在 y = 0
-        CreateBlock("Floor", root, new Vector3(0f, -0.5f, 0f), new Vector3(40f, 1f, 40f), floorMaterial);
-
-        // 四面外牆，高 4
-        CreateBlock("Wall_North", root, new Vector3(0f, 2f, 20.5f), new Vector3(42f, 4f, 1f), wallMaterial);
-        CreateBlock("Wall_South", root, new Vector3(0f, 2f, -20.5f), new Vector3(42f, 4f, 1f), wallMaterial);
-        CreateBlock("Wall_East", root, new Vector3(20.5f, 2f, 0f), new Vector3(1f, 4f, 40f), wallMaterial);
-        CreateBlock("Wall_West", root, new Vector3(-20.5f, 2f, 0f), new Vector3(1f, 4f, 40f), wallMaterial);
+        BuildFloorAndOuterWalls(root, floorMaterial, wallMaterial);
 
         // 窄走廊（內寬約 2 公尺），測試第三人稱鏡頭會不會穿牆
         CreateBlock("Corridor_Left", root, new Vector3(5f, 1.5f, 5f), new Vector3(0.5f, 3f, 12f), wallMaterial);
@@ -180,6 +412,180 @@ public static class PlayerSetupTools
         CreateBlock("Box_A", root, new Vector3(3f, 0.5f, -6f), new Vector3(1f, 1f, 1f), boxMaterial);
         CreateBlock("Box_B", root, new Vector3(12f, 1f, -8f), new Vector3(2f, 2f, 2f), boxMaterial);
         CreateBlock("Box_C", root, new Vector3(-8f, 0.75f, 12f), new Vector3(1.5f, 1.5f, 1.5f), boxMaterial);
+    }
+
+    /// <summary>
+    /// A6：地板 200 x 200（上表面在 y = 0），四面外牆在 ±100、高 4。
+    /// 會先刪掉 root 底下舊的地板與外牆再重建，其他物件不動。
+    /// </summary>
+    private static void BuildFloorAndOuterWalls(Transform root, Material floorMaterial, Material wallMaterial)
+    {
+        foreach (string childName in FloorAndOuterWallNames)
+        {
+            Transform oldChild = root.Find(childName);
+            if (oldChild != null)
+            {
+                Object.DestroyImmediate(oldChild.gameObject);
+            }
+        }
+
+        float half = FloorSize * 0.5f;
+        CreateBlock("Floor", root, new Vector3(0f, -0.5f, 0f), new Vector3(FloorSize, 1f, FloorSize), floorMaterial);
+        CreateBlock("Wall_North", root, new Vector3(0f, 2f, half + 0.5f), new Vector3(FloorSize + 2f, 4f, 1f), wallMaterial);
+        CreateBlock("Wall_South", root, new Vector3(0f, 2f, -half - 0.5f), new Vector3(FloorSize + 2f, 4f, 1f), wallMaterial);
+        CreateBlock("Wall_East", root, new Vector3(half + 0.5f, 2f, 0f), new Vector3(1f, 4f, FloorSize), wallMaterial);
+        CreateBlock("Wall_West", root, new Vector3(-half - 0.5f, 2f, 0f), new Vector3(1f, 4f, FloorSize), wallMaterial);
+    }
+
+    /// <summary>
+    /// 選單：A6。Player Prefab 補上 ExposureSystem、地板擴大到 200 x 200，
+    /// 放 2 個假煙霧來源（半徑 50、75）與暫時的警示文字 OnGUI。
+    /// </summary>
+    [MenuItem("Tools/Smokee/A - 放置 A6 煙霧測試")]
+    public static void BuildA6SmokeTestMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        // 1. Player Prefab：沒有就新建（新建的已包含 ExposureSystem），有就只補上 ExposureSystem
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null)
+        {
+            CreatePlayerPrefab();
+        }
+        else
+        {
+            AddExposureSystemToExistingPrefab();
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+        // 2. 地板與外牆擴大；移除上次放的 A6 物件
+        Transform environmentRoot = null;
+        bool hasPlayer = false;
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.name == A6RootName)
+            {
+                Object.DestroyImmediate(rootObject);
+            }
+            else if (rootObject.name == EnvironmentRootName)
+            {
+                environmentRoot = rootObject.transform;
+            }
+            else if (rootObject.GetComponent<PlayerController>() != null)
+            {
+                hasPlayer = true;
+            }
+        }
+
+        EnsureFolder(MaterialFolder);
+        if (environmentRoot != null)
+        {
+            Material floorMaterial = GetOrCreateMaterial("TestA_Floor", new Color(0.45f, 0.45f, 0.45f));
+            Material wallMaterial = GetOrCreateMaterial("TestA_Wall", new Color(0.85f, 0.8f, 0.7f));
+            BuildFloorAndOuterWalls(environmentRoot, floorMaterial, wallMaterial);
+        }
+
+        // 3. 假煙霧來源與警示文字
+        Transform a6Root = new GameObject(A6RootName).transform;
+        Material smokeMaterial = GetOrCreateSmokeMaterial();
+
+        // 玩家出生在 (0, 0, -10)，在兩個範圍外；兩個範圍中間有重疊區（測試取最大值、不加總）
+        CreateFakeSmokeSource("SmokeSource_R50", a6Root, new Vector3(-40f, 2f, 50f), 50f, smokeMaterial);
+        CreateFakeSmokeSource("SmokeSource_R75", a6Root, new Vector3(50f, 2f, 60f), 75f, smokeMaterial);
+
+        GameObject warning = new GameObject("DebugExposureWarning");
+        warning.transform.SetParent(a6Root, false);
+        warning.AddComponent<DebugExposureWarning>();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Selection.activeGameObject = a6Root.gameObject;
+
+        string message = "A6 煙霧測試物件已放好並存檔。\n" +
+                         "灰色球是煙霧來源位置；煙霧範圍是 Scene 視窗裡的線框（選取物件時是橘色）。";
+        if (environmentRoot == null)
+        {
+            message += "\n\n注意：場景裡沒有 TestEnvironment，地板沒有擴大。請先執行「A - 建立 TestScene_A 測試環境」再執行這個選單。";
+        }
+        if (!hasPlayer)
+        {
+            message += "\n\n注意：場景裡沒有 Player。請先執行「A - 建立 TestScene_A 測試環境」。";
+        }
+
+        EditorUtility.DisplayDialog("完成", message, "好");
+    }
+
+    /// <summary>打開現有的 Player Prefab，補上缺少的 ExposureSystem，其他設定保留。</summary>
+    private static void AddExposureSystemToExistingPrefab()
+    {
+        GameObject contents = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            if (contents.GetComponent<ExposureSystem>() == null)
+            {
+                contents.AddComponent<ExposureSystem>();
+                PrefabUtility.SaveAsPrefabAsset(contents, PrefabPath);
+            }
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(contents);
+        }
+    }
+
+    /// <summary>建立假煙霧來源：直徑 4 公尺的灰色半透明球（只是位置標記，沒有碰撞體）＋ SmokeSource。</summary>
+    private static void CreateFakeSmokeSource(string name, Transform parent, Vector3 position, float radius, Material material)
+    {
+        GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        sphere.name = name;
+        sphere.transform.SetParent(parent, false);
+        sphere.transform.localPosition = position;
+        sphere.transform.localScale = Vector3.one * 4f;
+        Object.DestroyImmediate(sphere.GetComponent<Collider>());
+        sphere.GetComponent<Renderer>().sharedMaterial = material;
+
+        SmokeSource source = sphere.AddComponent<SmokeSource>();
+        SerializedObject serializedSource = new SerializedObject(source);
+        serializedSource.FindProperty("_radius").floatValue = radius;
+        serializedSource.FindProperty("_isEmitting").boolValue = true;
+        serializedSource.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>取得（沒有就建立）灰色半透明的 URP 材質 TestA_Smoke。</summary>
+    private static Material GetOrCreateSmokeMaterial()
+    {
+        Material material = GetOrCreateMaterial("TestA_Smoke", new Color(0.55f, 0.55f, 0.55f, 0.45f));
+
+        // 把 URP Lit 材質設成透明（等同在 Inspector 把 Surface Type 改成 Transparent）
+        if (material.HasProperty("_Surface"))
+        {
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 0f);
+            material.SetOverrideTag("RenderType", "Transparent");
+            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            if (material.HasProperty("_SrcBlendAlpha"))
+            {
+                material.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+                material.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            }
+            material.SetFloat("_ZWrite", 0f);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            EditorUtility.SetDirty(material);
+            AssetDatabase.SaveAssets();
+        }
+
+        return material;
     }
 
     private static GameObject CreateBlock(string name, Transform parent, Vector3 position, Vector3 scale, Material material)

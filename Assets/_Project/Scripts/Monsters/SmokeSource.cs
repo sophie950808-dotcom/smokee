@@ -58,10 +58,25 @@ public class SmokeSource : MonoBehaviour
         _all.Remove(this);
     }
 
+    private void OnValidate()
+    {
+        // Inspector 輸入負數時自動修正為 0
+        _radius = Mathf.Max(0f, _radius);
+    }
+
+    private void OnDrawGizmos()
+    {
+        // 平常就在 Scene 視窗畫出淡淡的煙霧範圍；停止冒煙時顏色更淡
+        Gizmos.color = _isEmitting
+            ? new Color(0.6f, 0.6f, 0.6f, 0.35f)
+            : new Color(0.6f, 0.6f, 0.6f, 0.12f);
+        Gizmos.DrawWireSphere(transform.position, _radius);
+    }
+
     private void OnDrawGizmosSelected()
     {
-        // 在 Scene 視窗選取物件時，畫出煙霧範圍方便調整
-        Gizmos.color = new Color(0.5f, 0.5f, 0.5f, 0.6f);
+        // 選取物件時畫得更明顯，方便調整半徑
+        Gizmos.color = new Color(1f, 0.55f, 0.1f, 0.9f);
         Gizmos.DrawWireSphere(transform.position, _radius);
     }
 }
