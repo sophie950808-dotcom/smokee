@@ -4,11 +4,14 @@ public class GarageExitTrigger : MonoBehaviour
 {
     private void OnTriggerEnter(Collider other)
     {
-        // 只要是玩家穿過這個區域
-        OpeningSequence opening = FindFirstObjectByType<OpeningSequence>();
-        if (opening != null)
+        // 判斷只要進來的是玩家 (或其身上帶有 CharacterController / Tag 為 Player)
+        if (other.CompareTag("Player") || other.GetComponent<CharacterController>() != null)
         {
-            opening.OnPlayerExitedGarage();
+            OpeningSequence opening = FindFirstObjectByType<OpeningSequence>();
+            if (opening != null)
+            {
+                opening.OnPlayerReachedExit();
+            }
         }
     }
 }
