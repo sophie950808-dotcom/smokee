@@ -67,6 +67,12 @@ public class PlayerController : MonoBehaviour
     /// <summary>目前是否為第一人稱。</summary>
     public bool IsFirstPerson => _isFirstPerson;
 
+    /// <summary>
+    /// 玩家現在能不能操作：沒被 SetControlEnabled(false) 關掉，而且不在暫停中。
+    /// PlayerAttack、PlayerInteractor 用這個判斷能不能攻擊／互動。
+    /// </summary>
+    public bool IsControlEnabled => CanControl;
+
     /// <summary>切換第一／第三人稱時觸發。參數：是否第一人稱。</summary>
     public event Action<bool> OnViewModeChanged;
 

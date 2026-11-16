@@ -40,6 +40,23 @@ public interface IHittable {
 }
 ```
 - **B 的 SmokeMonster 必須實作這個介面**，A 的 PlayerAttack 只認這個介面。
+- **實作這個介面的物件（或它的子物件）一定要有 Collider**（可以是 Trigger），否則 PlayerAttack 找不到它。
+
+### `PlayerAttack` `Scripts/Combat/PlayerAttack.cs`（擁有者：A，掛在 Player 上）
+
+| 成員 | 說明 |
+|---|---|
+| `IHittable CurrentTarget { get; }` | 現在按左鍵會打到的目標（每幀更新），沒有時為 null |
+| `event Action<IHittable> OnTargetChanged` | 「現在會打到的目標」改變時，null = 沒有目標 |
+| `int HitCount { get; set; }` | 每次命中傳給 `TakeHit` 的次數，預設 1、最小 1。**吸入劑效果期間改成 3，結束改回 1** |
+| `event Action OnAttack` | 每次揮擊（不論有沒有打中）→ B 可接揮擊音效、動畫 |
+| `event Action<IHittable, Vector3> OnHit` | 命中時。參數：被打中的目標、命中位置 → B 可接命中音效、特效 |
+
+- 滑鼠左鍵攻擊，只打前方扇形內最近、沒被牆擋住的一個目標。`PlayerController.IsControlEnabled` 為 false 時不能攻擊。
+
+### `TargetMarker` `Scripts/Combat/TargetMarker.cs`（擁有者：A，掛在 Player 上）
+- 在攻擊目標（橘紅色）與互動目標（綠色）頭上顯示旋轉、浮動的倒金字塔。
+- 外觀可替換：Inspector 的 `Attack Marker Prefab`／`Interact Marker Prefab` 指定 B 做的 Prefab 即可。**這些 Prefab 不可以有 Collider**，否則會擋住攻擊與互動判定。
 
 ## 2. 介面 `IInteractable` `Scripts/Interaction/IInteractable.cs`（擁有者：A）
 
@@ -54,6 +71,9 @@ public interface IInteractable {
 - **C 的 ChestController、B 的 EscortNPC 實作這個介面。**
 - 只有 A 的 `PlayerInteractor` 會讀 E 鍵。B、C **不要自己讀 E 鍵**。
 - `PlayerInteractor` 事件：`event Action<IInteractable> OnFocusChanged`（null 代表附近沒有可互動物件）→ C 的 HUD 用來顯示／隱藏提示。
+- `PlayerInteractor` 屬性：`IInteractable CurrentTarget { get; }`（目前的目標，沒有時為 null）→ HUD 啟動時可以先讀一次。
+- **實作這個介面的物件（或它的子物件）一定要有 Collider**（可以是 Trigger），否則 PlayerInteractor 找不到它。
+- 中間被牆擋住（玩家胸口到 `InteractPoint` 之間有其他碰撞體）時不能互動；`PlayerController.IsControlEnabled` 為 false 時目標為 null。
 
 ---
 
@@ -105,6 +125,7 @@ public interface IInteractable {
 | 成員 | 說明 |
 |---|---|
 | `bool IsFirstPerson { get; }` | |
+| `bool IsControlEnabled { get; }` | 目前能不能操作：沒被 `SetControlEnabled(false)` 關掉，而且不在暫停中 |
 | `void SetControlEnabled(bool enabled)` | false = 停止移動與視角，並**解鎖滑鼠游標**；true = 恢復並鎖定游標 |
 | `void SetSpeedModifier(string key, float multiplier)` | 例如 `("Gum", 1.5f)`、`("MaxExposure", 0.7f)`；所有倍率相乘 |
 | `void RemoveSpeedModifier(string key)` | |

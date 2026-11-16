@@ -8,6 +8,7 @@ using UnityEngine.SceneManagement;
 /// A 的 Editor 選單工具（Unity 上方選單 Tools/Smokee）。
 /// 1. 建立 Player Prefab（膠囊外型，元件與引用都設定好）
 /// 2. 在 TestScene_A 建立測試環境（地板、牆、窄走廊、方塊）並放入 Player
+/// 3. A4：在 Player Prefab 補上 PlayerAttack／PlayerInteractor，並在 TestScene_A 放測試用假目標與互動物件
 /// </summary>
 public static class PlayerSetupTools
 {
@@ -16,6 +17,140 @@ public static class PlayerSetupTools
     private const string MaterialFolder = "Assets/_Project/Materials/TestA";
     private const string ScenePath = "Assets/_Project/Scenes/TestScene_A.unity";
     private const string EnvironmentRootName = "TestEnvironment";
+    private const string A4RootName = "A4_TestObjects";
+
+    /// <summary>選單：A4 測試物件。在 Player Prefab 補上攻擊／互動元件，並在 TestScene_A 放測試物件。</summary>
+    [MenuItem("Tools/Smokee/A - 放置 A4 攻擊／互動測試物件")]
+    public static void BuildA4TestObjectsMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        // 1. Player Prefab：沒有就新建（新建的已包含兩個元件），有就只補上缺少的元件
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null)
+        {
+            CreatePlayerPrefab();
+        }
+        else
+        {
+            AddA4ComponentsToExistingPrefab();
+        }
+
+        // 2. 開啟 TestScene_A，移除上次放的 A4 測試物件，重新放
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        bool hasPlayer = false;
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.name == A4RootName)
+            {
+                Object.DestroyImmediate(rootObject);
+            }
+            else if (rootObject.GetComponent<PlayerController>() != null)
+            {
+                hasPlayer = true;
+            }
+        }
+
+        BuildA4TestObjects();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+
+        string message = "A4 測試物件已放好並存檔。\n按 Play 就可以測試攻擊與互動。";
+        if (!hasPlayer)
+        {
+            message += "\n\n注意：場景裡沒有 Player。請先執行「A - 建立 TestScene_A 測試環境」。";
+        }
+
+        EditorUtility.DisplayDialog("完成", message, "好");
+    }
+
+    /// <summary>打開現有的 Player Prefab，補上缺少的 PlayerAttack／PlayerInteractor，其他設定保留。</summary>
+    private static void AddA4ComponentsToExistingPrefab()
+    {
+        GameObject contents = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            if (contents.GetComponent<PlayerController>() == null)
+            {
+                Debug.LogWarning("PlayerSetupTools：Player Prefab 上沒有 PlayerController，無法加攻擊／互動元件。");
+                return;
+            }
+
+            if (contents.GetComponent<PlayerAttack>() == null)
+            {
+                contents.AddComponent<PlayerAttack>();
+            }
+
+            if (contents.GetComponent<PlayerInteractor>() == null)
+            {
+                contents.AddComponent<PlayerInteractor>();
+            }
+
+            if (contents.GetComponent<TargetMarker>() == null)
+            {
+                contents.AddComponent<TargetMarker>();
+            }
+
+            PrefabUtility.SaveAsPrefabAsset(contents, PrefabPath);
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(contents);
+        }
+    }
+
+    /// <summary>
+    /// 放 A4 測試物件（Player 出生在 (0, 0, -10)，面向 +Z）：
+    /// 前方 2 個 TestDummy、東邊短牆後面 1 個 TestDummy 與 1 個 TestInteractable（測試隔牆），
+    /// 西邊 1 個 TestInteractable，以及暫時的互動提示 OnGUI。
+    /// </summary>
+    private static void BuildA4TestObjects()
+    {
+        EnsureFolder(MaterialFolder);
+        Material wallMaterial = GetOrCreateMaterial("TestA_Wall", new Color(0.85f, 0.8f, 0.7f));
+        Material dummyMaterial = GetOrCreateMaterial("TestA_Dummy", Color.white);
+        Material interactMaterial = GetOrCreateMaterial("TestA_Interactable", new Color(0.2f, 0.8f, 0.3f));
+
+        Transform root = new GameObject(A4RootName).transform;
+
+        // 前方的兩個假目標（高 2 公尺）
+        CreateDummy("Dummy_Front", root, new Vector3(0f, 1f, -7.5f), dummyMaterial);
+        CreateDummy("Dummy_Left", root, new Vector3(-2.5f, 1f, -7.5f), dummyMaterial);
+
+        // 東邊一面短牆，牆後面放假目標和互動物件：站在牆西側應該打不到、也不能互動
+        CreateBlock("A4_Wall", root, new Vector3(7f, 1.5f, -10f), new Vector3(0.3f, 3f, 3f), wallMaterial);
+        CreateDummy("Dummy_BehindWall", root, new Vector3(8f, 1f, -9.5f), dummyMaterial);
+        CreateInteractable("Interactable_BehindWall", root, new Vector3(8f, 0.5f, -11f), interactMaterial);
+
+        // 西邊的互動物件（沒被擋住）
+        CreateInteractable("Interactable_Test", root, new Vector3(-4f, 0.5f, -10f), interactMaterial);
+
+        // 暫時的互動提示（正式 HUD 由 C 負責）
+        GameObject prompt = new GameObject("DebugInteractPrompt");
+        prompt.transform.SetParent(root, false);
+        prompt.AddComponent<DebugInteractPrompt>();
+    }
+
+    private static void CreateDummy(string name, Transform parent, Vector3 position, Material material)
+    {
+        GameObject dummy = CreateBlock(name, parent, position, new Vector3(0.8f, 2f, 0.8f), material);
+        dummy.AddComponent<TestDummy>();
+    }
+
+    private static void CreateInteractable(string name, Transform parent, Vector3 position, Material material)
+    {
+        GameObject interactable = CreateBlock(name, parent, position, Vector3.one, material);
+        interactable.AddComponent<TestInteractable>();
+    }
 
     /// <summary>選單：建立（或覆蓋）Player Prefab。</summary>
     [MenuItem("Tools/Smokee/A - 建立 Player Prefab")]
@@ -107,6 +242,9 @@ public static class PlayerSetupTools
         characterController.stepOffset = 0.3f;
 
         PlayerController playerController = root.AddComponent<PlayerController>();
+        root.AddComponent<PlayerAttack>();
+        root.AddComponent<PlayerInteractor>();
+        root.AddComponent<TargetMarker>();
 
         // 身體：膠囊外型（拿掉膠囊自帶的碰撞體，碰撞交給 CharacterController）
         GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);

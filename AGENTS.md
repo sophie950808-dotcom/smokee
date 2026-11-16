@@ -59,7 +59,7 @@ AI 沒辦法在 Unity 裡按 Play。完成後只能說「程式寫好了，請�
 
 | 組員 | 負責 |
 |---|---|
-| A | `Scripts/Core/`、`Scripts/Player/`、`Scripts/Combat/`、`Scripts/Interaction/`、`Scripts/Monsters/SmokeSource.cs`、`TestScene_A` |
+| A | `Scripts/Core/`、`Scripts/Player/`、`Scripts/Combat/`、`Scripts/Interaction/`、`Scripts/DevTools/`、`Scripts/Monsters/SmokeSource.cs`、`TestScene_A` |
 | B | `Scripts/Monsters/`（SmokeSource 除外）、`Scripts/Opening/`、`Scripts/NPC/`、`Scripts/VFX/`、**`GameScene.unity`**、`TestScene_B` |
 | C | `Scripts/UI/`、`Scripts/Items/`、`Scripts/Quiz/`、**`MainMenu.unity`**、`TestScene_C` |
 | **只有 A 能改** | `AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`docs/` 全部、`ProjectSettings/`、`Packages/manifest.json` |
@@ -97,6 +97,7 @@ Assets/_Project/
   Scenes/      MainMenu, GameScene, TestScene_A, TestScene_B, TestScene_C
   Scripts/
     Core/  Player/  Combat/  Interaction/      ← A
+    DevTools/                                  ← A（測試用假物件，只在測試場景用）
     Monsters/  Opening/  NPC/  VFX/            ← B（SmokeSource.cs 是 A 的）
     Items/  Quiz/  UI/                         ← C
   Editor/  Prefabs/  Materials/  Models/  Audio/  VFX/  UI/  ScriptableObjects/
