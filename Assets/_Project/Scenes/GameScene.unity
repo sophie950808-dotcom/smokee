@@ -2425,9 +2425,10 @@ GameObject:
   - component: {fileID: 79293715}
   - component: {fileID: 79293714}
   - component: {fileID: 79293713}
+  - component: {fileID: 79293716}
   m_Layer: 0
   m_Name: Capsule
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -2523,6 +2524,31 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 79293711}
   m_Mesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!143 &79293716
+CharacterController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 79293711}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Height: 2
+  m_Radius: 0.5
+  m_SlopeLimit: 45
+  m_StepOffset: 0.3
+  m_SkinWidth: 0.08
+  m_MinMoveDistance: 0.001
+  m_Center: {x: 0, y: 0, z: 0}
 --- !u!1001 &79493266
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -17347,13 +17373,13 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 503211587}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.6074018, y: -0, z: -0, w: 0.7943948}
-  m_LocalPosition: {x: 26.987, y: 2.02, z: -13.78}
-  m_LocalScale: {x: 4.1814303, y: 0.035849974, z: 5.885806}
+  m_LocalRotation: {x: 0.70796216, y: -0, z: -0, w: 0.70625037}
+  m_LocalPosition: {x: 26.987, y: 1.48, z: -14.11}
+  m_LocalScale: {x: 4.1814303, y: 0.3542937, z: 3.114121}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 74.804, y: 0, z: 0}
+  m_LocalEulerAnglesHint: {x: 90.138, y: 0, z: 0}
 --- !u!1001 &503825079
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -21086,6 +21112,7 @@ GameObject:
   - component: {fileID: 619531527}
   - component: {fileID: 619531526}
   - component: {fileID: 619531525}
+  - component: {fileID: 619531528}
   m_Layer: 0
   m_Name: Capsule
   m_TagString: Untagged
@@ -21184,6 +21211,20 @@ MeshFilter:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 619531523}
   m_Mesh: {fileID: 10208, guid: 0000000000000000e000000000000000, type: 0}
+--- !u!114 &619531528
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 619531523}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fb7a2b41233accf47b19fc51b2e15ca5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _radius: 50
+  _isEmitting: 1
 --- !u!1001 &621649739
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -45070,6 +45111,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   smokingNPC: {fileID: 377656061}
+  npcSmokeParticles: {fileID: 1768371017}
   passerby: {fileID: 1467811496}
   garageDoor: {fileID: 228652359}
   player: {fileID: 1568526988}
@@ -51826,6 +51868,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 1568526988}
+  - component: {fileID: 1568526989}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -51849,6 +51892,20 @@ Transform:
   - {fileID: 79293712}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1568526989
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1568526987}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a51f6ca17081ea0428c96d5a9eb5acb2, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  moveSpeed: 5
+  rotateSpeed: 120
 --- !u!1001 &1573602769
 PrefabInstance:
   m_ObjectHideFlags: 0
@@ -57738,6 +57795,11 @@ PrefabInstance:
 Transform:
   m_CorrespondingSourceObject: {fileID: 2622712201488316151, guid: add1098d17f4cac4c8f9717e59e65f98, type: 3}
   m_PrefabInstance: {fileID: 1768021789}
+  m_PrefabAsset: {fileID: 0}
+--- !u!198 &1768371017 stripped
+ParticleSystem:
+  m_CorrespondingSourceObject: {fileID: 294938518836956188, guid: 3207bb10217031a498cc9ede9bb64af4, type: 3}
+  m_PrefabInstance: {fileID: 1787735722558068155}
   m_PrefabAsset: {fileID: 0}
 --- !u!1001 &1768909007
 PrefabInstance:

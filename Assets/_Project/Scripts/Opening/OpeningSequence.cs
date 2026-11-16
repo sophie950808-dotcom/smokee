@@ -1,56 +1,69 @@
+ï»¿using System;
 using System.Collections;
 using UnityEngine;
 
+/// <summary>
+/// æ­»å··é–‹å ´é›™è·¯ç·šæ§åˆ¶å™¨ (ä»»å‹™ B.3)
+/// ä¼åŠƒæ›¸è¦æ ¼ï¼š3.2 ~ 3.4 ç¯€
+/// </summary>
 public class OpeningSequence : MonoBehaviour
 {
-    [Header("¨¤¦â»Pª«¥ó¤Ş¥Î")]
-    [Tooltip("§lµÒ NPC (Capsule)")]
+    // å°å¤–éœæ…‹äº‹ä»¶ï¼šè·¯ç·š B çµæŸæ™‚å»£æ’­ï¼Œé€šçŸ¥ A çµ„å“¡çš„ RouteManager / GameManager
+    public static event Action OnOpeningFinished;
+
+    [Header("è§’è‰²èˆ‡ç‰©ä»¶å¼•ç”¨")]
+    [Tooltip("å¸è¸çš„æœ‹å‹ NPC")]
     public Transform smokingNPC;
-    [Tooltip("´~¤H¸ô¤H (Capsule)")]
+    [Tooltip("å¸è¸ NPC èº«ä¸Šç²’å­ (æ‹’çµ•æ™‚é»è¸å†’ç…™)")]
+    public ParticleSystem npcSmokeParticles;
+    [Tooltip("è·¯äºº NPC")]
     public Transform passerby;
-    [Tooltip("¨®®wªùª«¥ó (­n©¹¤W¤É°_ªºªù)")]
+    [Tooltip("è»Šåº«éµæ²é–€ç‰©ä»¶")]
     public Transform garageDoor;
-    [Tooltip("ª±®aª«¥ó")]
+    [Tooltip("ç©å®¶ç‰©ä»¶")]
     public Transform player;
 
-    [Header("¨®®wªù¶}ªù³]©w")]
-    [Tooltip("¨®®wªù¶}ªù®É¦V¤W²¾°Êªº°ª«× (¤½¤Ø)")]
+    [Header("è»Šåº«é–€é–‹é–€è¨­å®š")]
     public float doorOpenHeight = 3.5f;
-    [Tooltip("¶}ªù©Ò»İ®É¶¡ (¬í)")]
     public float doorOpenSpeed = 2.0f;
 
-    [Header("¸ô¤H³]©w")]
-    [Tooltip("¸ô¤H½Ä¦Vª±®a³t«×")]
-    public float passerbySpeed = 5.0f;
+    [Header("è·¯äººé€Ÿåº¦è¨­å®š")]
+    public float passerbySpeed = 6.0f;
 
     public enum RouteChoice
     {
         None,
-        Accept, // ¸ô½u A¡G©âµÒ
-        Refuse  // ¸ô½u B¡G©Úµ´
+        RouteA_Accept, // æ¥å—æŠ½è¸
+        RouteB_Refuse  // æ‹’çµ•æŠ½è¸
     }
-    public RouteChoice currentChoice = RouteChoice.None;
+    [HideInInspector] public RouteChoice currentChoice = RouteChoice.None;
 
     private bool isDoorOpen = false;
-    private bool hasTriggeredExitEvent = false;
+    private bool hasTriggeredExit = false;
 
-    // µe­±Âà¶Â»P¤å¦r´£¥Ü
+    // ç•«é¢è½‰é»‘é®ç½©èˆ‡æ–‡å­—
     private float blackFadeAlpha = 0f;
-    private string narrativeMessage = "";
-    private bool showNarrative = false;
+    private string narrativeSubtitle = "";
+    private bool showSubtitle = false;
 
     private void Start()
     {
-        // ªì©l®É¸ô¤H¥ıÁôÂÃ©ÎÀR¤î¦b¨®®w¥~¤£»·³B
+        // åˆå§‹è¨­å®šï¼šè·¯äººå…ˆéš±è—
         if (passerby != null)
         {
             passerby.gameObject.SetActive(false);
+        }
+
+        // æœ‹å‹åˆå§‹å…ˆä¸å†’ç…™
+        if (npcSmokeParticles != null)
+        {
+            npcSmokeParticles.Stop();
         }
     }
 
     private void OnGUI()
     {
-        // 1. ¶}³õ¿ï¾Ü UI (ÁÙ¨S°µ¿ï¾Ü®ÉÅã¥Ü)
+        // 1. é–‹å ´é¸æ“‡ UI (é‚„æ²’é¸æ“‡æ™‚é¡¯ç¤º)
         if (currentChoice == RouteChoice.None)
         {
             GUIStyle boxStyle = new GUIStyle(GUI.skin.box);
@@ -66,22 +79,29 @@ public class OpeningSequence : MonoBehaviour
             float centerY = (Screen.height - boxHeight) / 2f;
 
             GUI.Box(new Rect(centerX, centerY, boxWidth, boxHeight),
-                "¨®®w¸ÌªºªB¤Í¡G\n¡u³o¸Ì¨S¤HºŞ¡A­n¤£­n¨Ó¤@®Ú©ñÃP¤@¤U¡H¡v", boxStyle);
+                "è»Šåº«è£¡çš„æœ‹å‹ï¼š\nã€Œé€™è£¡æ²’äººç®¡ï¼Œè¦ä¸è¦ä¾†ä¸€æ ¹æ”¾é¬†ä¸€ä¸‹ï¼Ÿã€", boxStyle);
 
-            if (GUI.Button(new Rect(centerX + 40, centerY + 120, 160, 50), "±µ¨ü (©âµÒ)", buttonStyle))
+            if (GUI.Button(new Rect(centerX + 40, centerY + 120, 160, 50), "æ¥å— (æŠ½è¸)", buttonStyle))
             {
-                currentChoice = RouteChoice.Accept;
-                StartCoroutine(OpenDoorRoutine());
+                currentChoice = RouteChoice.RouteA_Accept;
+                StartCoroutine(OpenDoorSequence());
             }
 
-            if (GUI.Button(new Rect(centerX + 260, centerY + 120, 160, 50), "©Úµ´ (¤£©â)", buttonStyle))
+            if (GUI.Button(new Rect(centerX + 260, centerY + 120, 160, 50), "æ‹’çµ• (ä¸æŠ½)", buttonStyle))
             {
-                currentChoice = RouteChoice.Refuse;
-                StartCoroutine(OpenDoorRoutine());
+                currentChoice = RouteChoice.RouteB_Refuse;
+                // æœ‹å‹é»èµ·è¸æˆç‚ºæ­»å··ç¬¬ä¸€å€‹ç…™éœ§ä¾†æº
+                if (npcSmokeParticles != null) npcSmokeParticles.Play();
+                if (smokingNPC != null)
+                {
+                    SmokeSource src = smokingNPC.GetComponent<SmokeSource>();
+                    if (src != null) src.IsEmitting = true;
+                }
+                StartCoroutine(OpenDoorSequence());
             }
         }
 
-        // 2. ¸ô½u A¡G³Q´~«áªº¶Â«ÌÃg»@ºt¥X
+        // 2. è·¯ç·š Aï¼šç•«é¢è½‰é»‘ + å­—å¹•æç¤º
         if (blackFadeAlpha > 0f)
         {
             Color oldColor = GUI.color;
@@ -89,25 +109,22 @@ public class OpeningSequence : MonoBehaviour
             GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
             GUI.color = oldColor;
 
-            if (showNarrative)
+            if (showSubtitle)
             {
-                GUIStyle msgStyle = new GUIStyle(GUI.skin.label);
-                msgStyle.fontSize = 24;
-                msgStyle.alignment = TextAnchor.MiddleCenter;
-                msgStyle.normal.textColor = Color.red;
+                GUIStyle subStyle = new GUIStyle(GUI.skin.label);
+                subStyle.fontSize = 26;
+                subStyle.alignment = TextAnchor.MiddleCenter;
+                subStyle.fontStyle = FontStyle.Bold;
+                subStyle.normal.textColor = new Color(1f, 0.3f, 0.3f); // ç´…è‰²è­¦ç¤ºæ–‡å­—
 
-                GUI.Label(new Rect(0, Screen.height / 2f - 60, Screen.width, 120), narrativeMessage, msgStyle);
+                GUI.Label(new Rect(0, Screen.height / 2f - 80, Screen.width, 160), narrativeSubtitle, subStyle);
             }
         }
     }
 
-    /// <summary>
-    /// ¨®®wªù¥´¶}¨óµ{
-    /// </summary>
-    private IEnumerator OpenDoorRoutine()
+    private IEnumerator OpenDoorSequence()
     {
-        Debug.Log("[¶}³õ] ¿ï¾Ü§¹²¦¡A¨®®wªù¥¿¦b¤É°_...");
-
+        Debug.Log("[é–‹å ´æ¼”å‡º] è»Šåº«é–€æ­£åœ¨å‡èµ·...");
         if (garageDoor != null)
         {
             Vector3 startPos = garageDoor.position;
@@ -122,78 +139,91 @@ public class OpeningSequence : MonoBehaviour
                 yield return null;
             }
         }
-
         isDoorOpen = true;
-        Debug.Log("[¶}³õ] ¨®®wªù¤w¥´¶}¡I½Ğ¾Ş±±ª±®a¨«¥X¨®®w¡C");
+        Debug.Log("[é–‹å ´æ¼”å‡º] è»Šåº«é–€é–‹å•Ÿï¼Œè«‹æ“æ§è§’è‰²èµ°å‡ºè»Šåº«ï¼");
     }
 
     /// <summary>
-    /// ·íª±®a¨«¥X¨®®w½ò¨ìªù¤fÄ²µo¾¹®É³Q©I¥s
+    /// ç©å®¶æ’åˆ° GarageExitTrigger æ™‚è¢«èª¿ç”¨
     /// </summary>
-    public void OnPlayerExitedGarage()
+    public void OnPlayerReachedExit()
     {
-        if (!isDoorOpen || hasTriggeredExitEvent) return;
-        hasTriggeredExitEvent = true;
+        if (!isDoorOpen || hasTriggeredExit) return;
+        hasTriggeredExit = true;
 
-        if (currentChoice == RouteChoice.Accept)
+        if (currentChoice == RouteChoice.RouteA_Accept)
         {
-            StartCoroutine(RouteA_EncounterAngryPasserby());
+            StartCoroutine(RouteA_PunishAndDieRoutine());
         }
-        else if (currentChoice == RouteChoice.Refuse)
+        else if (currentChoice == RouteChoice.RouteB_Refuse)
         {
-            StartCoroutine(RouteB_EncounterNormalPasserby());
+            StartCoroutine(RouteB_EnterStreetRoutine());
         }
     }
 
-    // ¸ô½u A¡G¨«¥X¨®®w«á¹J¨ì¸ô¤H³Q´~
-    private IEnumerator RouteA_EncounterAngryPasserby()
+    // --- è·¯ç·š A æ¼”å‡ºï¼šè·¯äººå¸åˆ°äºŒæ‰‹è¸ä¸Šå‰ææ­»ç©å®¶ â” ç•«é¢è½‰é»‘ â” é‡æ–°é–‹å§‹ ---
+    private IEnumerator RouteA_PunishAndDieRoutine()
     {
-        Debug.Log("[¸ô½u A] ª±®a¨«¥X¨®®w¡A¨­¤W´²µo¤G¤âµÒ¡I");
+        Debug.Log("[è·¯ç·š A] ç©å®¶èµ°å‡ºè»Šåº«ï¼Œèº«ä¸Šæ•£ç™¼äºŒæ‰‹è¸ï¼");
+
         if (passerby != null)
         {
             passerby.gameObject.SetActive(true);
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSeconds(0.3f);
 
-            // ¸ô¤H½Ä¦Vª±®a
-            float timer = 0f;
+            // è·¯äººå¿«é€Ÿè¡æ’ç©å®¶
+            float elapsed = 0f;
             Vector3 startPos = passerby.position;
             Vector3 targetPos = player != null ? player.position : startPos;
 
-            while (timer < 1f)
+            while (elapsed < 1.0f)
             {
-                timer += Time.deltaTime * (passerbySpeed / Mathf.Max(0.1f, Vector3.Distance(startPos, targetPos)));
-                passerby.position = Vector3.Lerp(startPos, targetPos, timer);
+                elapsed += Time.deltaTime * (passerbySpeed / Mathf.Max(0.5f, Vector3.Distance(startPos, targetPos)));
+                passerby.position = Vector3.Lerp(startPos, targetPos, elapsed);
                 yield return null;
             }
         }
 
-        // ¶Â«ÌÃg»@
-        narrativeMessage = "ªù¥~ªº¸ô¤H§l¨ì§A­è©âªº¤G¤âµÒ¡A¤Şµo±j¯P¤£º¡¤W«eµh«ó¤F§A¡I\n\n¡i¤G¤âµÒ¦b«Ç¤º«Ç¥~³£·|¹ï¥L¤H³y¦¨ÄY­«¦M®`¡j";
-        showNarrative = true;
+        // ç•«é¢è½‰é»‘
+        narrativeSubtitle = "é–€å¤–è·¯äººå¸åˆ°ä½ ç”¢ç”Ÿçš„äºŒæ‰‹è¸ï¼Œæ†¤æ€’åœ°å°‡ä½ æ“Šå€’ï¼\n\nã€äºŒæ‰‹è¸å®³äººå®³å·±ï¼ŒéŠæˆ²å¤±æ•—ã€‘";
+        showSubtitle = true;
 
         float fade = 0f;
         while (fade < 1f)
         {
-            fade += Time.deltaTime * 2.5f;
+            fade += Time.deltaTime * 3f;
             blackFadeAlpha = Mathf.Clamp01(fade);
             yield return null;
         }
 
         yield return new WaitForSeconds(3.5f);
-        // ­«·s¶}©l
+
+        // é‡æ–°è¼‰å…¥å ´æ™¯
         UnityEngine.SceneManagement.SceneManager.LoadScene(
             UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex
         );
     }
 
-    // ¸ô½u B¡G¨«¥X¨®®w«á¹J¨ì¤@¯ë¸ô¤H¡A¥¿¦¡½ñ¤Jµó¹D
-    private IEnumerator RouteB_EncounterNormalPasserby()
+    // --- è·¯ç·š B æ¼”å‡ºï¼šç›´æ¥é€²å…¥è¡—é“ï¼Œé€šçŸ¥ RouteManager ---
+    private IEnumerator RouteB_EnterStreetRoutine()
     {
-        Debug.Log("[¸ô½u B] ª±®a¨«¥X¨®®w¡AªÅ®ğ²M·s¡I¸ô¤H¥¿±`¸g¹L¡C");
+        Debug.Log("[è·¯ç·š B] æˆåŠŸèµ°å‡ºå€‰åº«ï¼ç©å®¶é€²å…¥ä¸»è¦è¡—é“ï¼");
+
         if (passerby != null)
         {
             passerby.gameObject.SetActive(true);
         }
+
+        // é—œéµï¼šå»£æ’­é€šçŸ¥ A çµ„å“¡çš„ RouteManager / GameManager
+        OnOpeningFinished?.Invoke();
+
+        // ä¹Ÿå¯ä»¥é€é SendMessage æˆ–å°‹æ‰¾ RouteManager é˜²å‘†èª¿ç”¨ (ä¼åŠƒæ›¸ç¬¬ 10.4 ç¯€)
+        GameObject routeMgr = GameObject.Find("RouteManager");
+        if (routeMgr != null)
+        {
+            routeMgr.SendMessage("OnOpeningFinished", SendMessageOptions.DontRequireReceiver);
+        }
+
         yield return null;
     }
 }
