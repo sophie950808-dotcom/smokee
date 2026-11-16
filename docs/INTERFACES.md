@@ -110,17 +110,26 @@ public interface IInteractable {
 |---|---|
 | `static RouteManager Instance` | |
 | `OpeningRoute ChosenRoute { get; }` | |
-| `void ChooseRoute(OpeningRoute route)` | **C 的開場對話框按鈕呼叫** |
-| `void NotifyOpeningFinished()` | **B 的 OpeningSequence 演出結束時呼叫** |
-| `void NotifyPlayerLeftAlley()` | B 在死巷出口放 Trigger，玩家穿過時呼叫 → 開始倒數 |
+| `void ChooseRoute(OpeningRoute route)` | **C 的開場對話框按鈕呼叫**。只接受第一次選擇，之後的呼叫忽略 |
+| `void NotifyOpeningFinished()` | **B 的 OpeningSequence 演出結束時呼叫**。選過路線後的第一次呼叫才有效 |
+| `void NotifyPlayerLeftAlley()` | 玩家走出死巷 → 開始倒數。只在「選了 `RefuseSmoke` 且開場已結束」時有效，只觸發一次。**B 不用自己呼叫，掛 `AlleyExitTrigger` 即可** |
 | `event Action<OpeningRoute> OnRouteChosen` | **B 的 OpeningSequence 監聽，播放對應演出** |
 | `event Action<OpeningRoute> OnOpeningFinished` | |
 
 流程：
-1. 開場對話框（C）→ `ChooseRoute(...)` → 觸發 `OnRouteChosen`
-2. OpeningSequence（B）播放演出 → `NotifyOpeningFinished()`
-3. 若是 `AcceptSmoke`：RouteManager 重新載入 GameScene（玩家重新選擇）
-4. 若是 `RefuseSmoke`：玩家恢復操作；走出死巷 → `NotifyPlayerLeftAlley()` → `GameManager.StartRound()`
+1. 場景開始：GameManager 為 `Opening` 狀態，RouteManager 呼叫 `SetControlEnabled(false)`（讓玩家點對話框）
+2. 開場對話框（C）→ `ChooseRoute(...)` → 觸發 `OnRouteChosen`
+3. OpeningSequence（B）播放演出 → `NotifyOpeningFinished()`
+4. 若是 `AcceptSmoke`：RouteManager 等待一小段時間（Inspector 可調，預設 1 秒）後**重新載入目前場景**，所有狀態回到初始值，玩家重新選擇。**B 不要自己 `LoadScene`**
+5. 若是 `RefuseSmoke`：RouteManager 恢復玩家操作；走出死巷 → `AlleyExitTrigger` → `NotifyPlayerLeftAlley()` → `GameManager.StartRound()`
+
+- GameManager 的開發者選項 `autoStartRound` 在場景裡有 RouteManager 時不會生效。
+
+### `AlleyExitTrigger` `Scripts/Core/AlleyExitTrigger.cs`（擁有者：A，B 掛在物件上）
+
+- 掛在死巷出口的 Collider 上（**勾選 Is Trigger**；加元件時會自動勾選）。
+- 玩家（身上有 `PlayerController`）穿過時自動呼叫 `RouteManager.Instance.NotifyPlayerLeftAlley()`，不用寫程式。
+- 沒有公開成員；玩家來回穿過也沒關係，「只觸發一次」由 RouteManager 判斷。
 
 ## 5. `PlayerController` `Scripts/Player/PlayerController.cs`（擁有者：A）
 
@@ -134,7 +143,11 @@ public interface IInteractable {
 | `event Action<bool> OnViewModeChanged` | 參數：是否第一人稱 |
 
 - **C 開啟問答 UI 時呼叫 `SetControlEnabled(false)`，關閉時 `SetControlEnabled(true)`**，否則滑鼠點不到按鈕。
-- B 的開場演出期間也用 `SetControlEnabled(false)` 鎖住玩家。
+- 開場期間的玩家控制（`SetControlEnabled` 只記一個開關，**最後一次呼叫的人說了算**，所以照下面分段負責）：
+  1. **場景開始**：RouteManager 呼叫 `SetControlEnabled(false)`，讓玩家點開場對話框。
+  2. **選完路線到演出結束**：由 B 的 OpeningSequence 決定（例如鐵捲門打開後 `true` 讓玩家走出車庫、播演出時 `false`）。
+  3. **路線 B 演出結束**（`NotifyOpeningFinished()` 之後）：RouteManager 呼叫 `SetControlEnabled(true)`，B 不用再呼叫。
+  4. **路線 A 演出結束**：RouteManager 等待後重新載入場景，B 不用恢復控制。
 
 ## 6. `PlayerHealth` `Scripts/Player/PlayerHealth.cs`（擁有者：A）
 

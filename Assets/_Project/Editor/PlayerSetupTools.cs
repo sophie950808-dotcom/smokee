@@ -10,6 +10,7 @@ using UnityEngine.SceneManagement;
 /// 2. 在 TestScene_A 建立測試環境（地板、牆、窄走廊、方塊）並放入 Player
 /// 3. A4：在 Player Prefab 補上 PlayerAttack／PlayerInteractor，並在 TestScene_A 放測試用假目標與互動物件
 /// 4. A5：在 TestScene_A 放 GameManager（開發者模式、自動開始倒數）與開發者工具
+/// 5. A9：在 TestScene_A 放 RouteManager 與死巷出口測試方塊
 /// </summary>
 public static class PlayerSetupTools
 {
@@ -19,6 +20,7 @@ public static class PlayerSetupTools
     private const string ScenePath = "Assets/_Project/Scenes/TestScene_A.unity";
     private const string EnvironmentRootName = "TestEnvironment";
     private const string A4RootName = "A4_TestObjects";
+    private const string A9ExitName = "A9_AlleyExit";
 
     /// <summary>選單：A5。在 TestScene_A 放 GameManager，勾選 devMode 與 autoStartRound，並掛上 DevOverlay、DevHotkeys。</summary>
     [MenuItem("Tools/Smokee/A - 放置 A5 GameManager（開發者模式）")]
@@ -62,6 +64,54 @@ public static class PlayerSetupTools
 
         EditorUtility.DisplayDialog("完成",
             "GameManager 已放進 TestScene_A 並存檔（devMode、autoStartRound 已勾選）。\n按 Play 後左上角會出現開發者面板。",
+            "好");
+    }
+
+    /// <summary>
+    /// 選單：A9。在 TestScene_A 放 RouteManager，並在窄走廊盡頭放一個綠色的死巷出口方塊（Trigger＋AlleyExitTrigger）。
+    /// 不會動到 GameManager（autoStartRound 保持勾選，用來確認有 RouteManager 時會被忽略）。
+    /// </summary>
+    [MenuItem("Tools/Smokee/A - 放置 A9 RouteManager 與死巷出口")]
+    public static void BuildA9RouteTestMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+        // 移除舊的 RouteManager 與舊的 A9 出口（避免重複）
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.name == A9ExitName || rootObject.GetComponentInChildren<RouteManager>(true) != null)
+            {
+                Object.DestroyImmediate(rootObject);
+            }
+        }
+
+        GameObject routeObject = new GameObject("RouteManager");
+        routeObject.AddComponent<RouteManager>();
+
+        // 窄走廊在 x = 5～7.5、z = -1～11，出口放在走廊北端
+        Material exitMaterial = GetOrCreateMaterial("TestA_AlleyExit", new Color(0.3f, 1f, 0.4f));
+        GameObject exit = CreateBlock(A9ExitName, null, new Vector3(6.25f, 1.5f, 11.5f), new Vector3(2f, 3f, 0.3f), exitMaterial);
+        exit.GetComponent<Collider>().isTrigger = true;
+        exit.AddComponent<AlleyExitTrigger>();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Selection.activeGameObject = routeObject;
+
+        EditorUtility.DisplayDialog("完成",
+            "RouteManager 與死巷出口（綠色方塊，在窄走廊北端）已放進 TestScene_A 並存檔。\n" +
+            "按 Play 後用 F5／F6 選路線、F7 結束開場。",
             "好");
     }
 

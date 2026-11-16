@@ -50,8 +50,13 @@ public class DevOverlay : MonoBehaviour
             ? _exposureSystem.Exposure.ToString("F0")
             : "N/A";
 
+        string routeText = RouteManager.Instance != null
+            ? RouteManager.Instance.ChosenRoute.ToString()
+            : "N/A（沒有 RouteManager）";
+
         string text =
             "[DEV] 狀態：" + gameManager.State + "\n" +
+            "路線：" + routeText + "\n" +
             "剩餘時間：" + minutes.ToString("00") + ":" + seconds.ToString("00") + "\n" +
             "淨化進度：" + gameManager.PurificationProgress.ToString("F0") + " / 100\n" +
             "HP：" + hpText + "\n" +

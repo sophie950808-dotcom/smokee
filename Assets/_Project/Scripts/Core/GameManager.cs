@@ -33,7 +33,7 @@ public class GameManager : MonoBehaviour
     [Tooltip("勾選後 DevOverlay（左上角狀態面板）與 DevHotkeys（F1～F4）才會生效")]
     [SerializeField] private bool _devMode = false;
 
-    [Tooltip("開發者模式下，進入場景就直接開始倒數（測試場景沒有 RouteManager 時使用）")]
+    [Tooltip("開發者模式下，進入場景就直接開始倒數。場景裡有 RouteManager 時會被忽略（改由走出死巷開始）")]
     [SerializeField] private bool _autoStartRound = false;
 
     private GameState _state = GameState.Opening;
@@ -122,7 +122,15 @@ public class GameManager : MonoBehaviour
 
         if (_devMode && _autoStartRound)
         {
-            StartRound();
+            // 所有 Awake 都比 Start 早執行，所以這裡 RouteManager.Instance 已經設定好了
+            if (RouteManager.Instance != null)
+            {
+                Debug.Log("[GameManager] 場景裡有 RouteManager，已忽略 autoStartRound（改由玩家走出死巷開始倒數）。", this);
+            }
+            else
+            {
+                StartRound();
+            }
         }
     }
 
