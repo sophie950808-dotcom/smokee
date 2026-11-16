@@ -167,7 +167,7 @@ public interface IInteractable {
 | `float VisualExposure { get; }` | **B 的畫面效果讀這個**；戒菸噴霧生效時為 0，其餘等於 Exposure |
 | `bool IsWarning { get; }` | Exposure ≥ 80 |
 | `bool IsMaxed { get; }` | Exposure ≥ 100 |
-| `float SmokeSeconds { get; }` | 累計待在煙霧範圍內的秒數 |
+| `float SmokeSeconds { get; }` | 累計待在煙霧範圍內的秒數。**只算倒數中（Playing）**，開場死巷裡的時間不算（暴露值本身照算） |
 | `event Action<float> OnExposureChanged` | |
 | `event Action<bool> OnWarningChanged` | **C 的警示文字監聽**；true 顯示、false 隱藏 |
 | `event Action<bool> OnMaxedChanged` | 進入／離開 100（咳嗽音效、減速） |

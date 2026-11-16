@@ -9,6 +9,8 @@ using UnityEngine;
 /// - 不在任何範圍內：每秒下降 3。
 /// - 距離只算水平距離（忽略高度），玩家跳躍時數值不會亂跳。
 /// - 只在 GameManager 為 Opening 或 Playing 時計算；場景裡沒有 GameManager 時照樣計算（方便單獨測試）。
+/// - SmokeSeconds（吸入二手菸量）只在 Playing（倒數中）累加，開場死巷裡的時間不算；
+///   沒有 GameManager 時照樣累加。
 /// </summary>
 public class ExposureSystem : MonoBehaviour
 {
@@ -50,7 +52,7 @@ public class ExposureSystem : MonoBehaviour
     /// <summary>暴露值 ≥ 100 時為 true。</summary>
     public bool IsMaxed => _isMaxed;
 
-    /// <summary>累計待在（正在冒煙的）煙霧範圍內的秒數。</summary>
+    /// <summary>累計待在（正在冒煙的）煙霧範圍內的秒數。只算倒數中（Playing），開場時間不算。</summary>
     public float SmokeSeconds => _smokeSeconds;
 
     /// <summary>
@@ -100,7 +102,8 @@ public class ExposureSystem : MonoBehaviour
         bool inSmoke;
         float riseSpeed = GetHighestRiseSpeed(out inSmoke);
 
-        if (inSmoke)
+        // 吸入二手菸量只算倒數中，開場在死巷裡的時間不算
+        if (inSmoke && IsRoundPlaying())
         {
             _smokeSeconds += deltaTime;
         }
@@ -137,6 +140,13 @@ public class ExposureSystem : MonoBehaviour
         }
 
         return gameManager.State == GameState.Opening || gameManager.State == GameState.Playing;
+    }
+
+    /// <summary>是否在倒數中（Playing）；沒有 GameManager 時視為是（方便單獨測試）。</summary>
+    private bool IsRoundPlaying()
+    {
+        GameManager gameManager = GameManager.Instance;
+        return gameManager == null || gameManager.State == GameState.Playing;
     }
 
     /// <summary>
