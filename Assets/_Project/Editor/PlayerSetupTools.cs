@@ -9,6 +9,7 @@ using UnityEngine.SceneManagement;
 /// 1. 建立 Player Prefab（膠囊外型，元件與引用都設定好）
 /// 2. 在 TestScene_A 建立測試環境（地板、牆、窄走廊、方塊）並放入 Player
 /// 3. A4：在 Player Prefab 補上 PlayerAttack／PlayerInteractor，並在 TestScene_A 放測試用假目標與互動物件
+/// 4. A5：在 TestScene_A 放 GameManager（開發者模式、自動開始倒數）與開發者工具
 /// </summary>
 public static class PlayerSetupTools
 {
@@ -18,6 +19,51 @@ public static class PlayerSetupTools
     private const string ScenePath = "Assets/_Project/Scenes/TestScene_A.unity";
     private const string EnvironmentRootName = "TestEnvironment";
     private const string A4RootName = "A4_TestObjects";
+
+    /// <summary>選單：A5。在 TestScene_A 放 GameManager，勾選 devMode 與 autoStartRound，並掛上 DevOverlay、DevHotkeys。</summary>
+    [MenuItem("Tools/Smokee/A - 放置 A5 GameManager（開發者模式）")]
+    public static void BuildA5GameManagerMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+        // 移除場景裡舊的 GameManager（避免出現兩個）
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.GetComponentInChildren<GameManager>(true) != null)
+            {
+                Object.DestroyImmediate(rootObject);
+            }
+        }
+
+        GameObject managerObject = new GameObject("GameManager");
+        GameManager gameManager = managerObject.AddComponent<GameManager>();
+        managerObject.AddComponent<DevOverlay>();
+        managerObject.AddComponent<DevHotkeys>();
+
+        SerializedObject serializedManager = new SerializedObject(gameManager);
+        serializedManager.FindProperty("_devMode").boolValue = true;
+        serializedManager.FindProperty("_autoStartRound").boolValue = true;
+        serializedManager.ApplyModifiedPropertiesWithoutUndo();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Selection.activeGameObject = managerObject;
+
+        EditorUtility.DisplayDialog("完成",
+            "GameManager 已放進 TestScene_A 並存檔（devMode、autoStartRound 已勾選）。\n按 Play 後左上角會出現開發者面板。",
+            "好");
+    }
 
     /// <summary>選單：A4 測試物件。在 Player Prefab 補上攻擊／互動元件，並在 TestScene_A 放測試物件。</summary>
     [MenuItem("Tools/Smokee/A - 放置 A4 攻擊／互動測試物件")]

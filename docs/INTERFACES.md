@@ -101,6 +101,8 @@ public interface IInteractable {
 - Esc 鍵由 GameManager 讀取並切換暫停。C 的暫停選單只要監聽 `OnPauseChanged`。
 - 暫停使用 `Time.timeScale = 0`。**C 的 UI 動畫請用 `Time.unscaledDeltaTime`。**
 - 剩餘時間每幀變動，HUD 直接每幀讀 `RemainingTime` 即可，不另設事件。
+- 暫停可在 Opening、Playing 時進入，繼續後回到原本的狀態；`Ended` 時 Esc 無效。`AddPurificationProgress` 只在 `Playing` 時有效。
+- **`DevMode`、`DevSetRemainingTime`、`DevForceEnd` 只給 A 的開發者工具（`Scripts/DevTools/`）使用，B、C 不要呼叫。** GameManager 沒勾選 devMode 時它們沒有作用。
 
 ## 4. `RouteManager` `Scripts/Core/RouteManager.cs`（擁有者：A）
 
