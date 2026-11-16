@@ -2,11 +2,7 @@ using System;
 using System.Collections;
 using UnityEngine;
 
-public enum MonsterSize
-{
-    Small, // 小型菸怪 (3 下擊敗)
-    Large  // 大型菸怪 (10 下擊敗)
-}
+
 
 /// <summary>
 /// 菸怪行為：受擊計數、消散、通知擊敗加分
