@@ -171,6 +171,12 @@ public interface IInteractable {
 | `event Action<float> OnExposureChanged` | |
 | `event Action<bool> OnWarningChanged` | **C 的警示文字監聽**；true 顯示、false 隱藏 |
 | `event Action<bool> OnMaxedChanged` | 進入／離開 100（咳嗽音效、減速） |
+| `float RiseMultiplier { get; set; }` | 上升速度倍率，預設 1。**只給 A 的 PlayerEffects（尼古丁貼片 0.75）使用** |
+| `bool IsVisualSuppressed { get; set; }` | true 時 `VisualExposure` 回傳 0（暴露值照算）。**只給 A 的 PlayerEffects（戒菸噴霧）使用** |
+
+- 同時在多個煙霧範圍內時，取**上升速度最大**的那一個來源，不加總。距離只算水平距離。
+- 只在 GameManager 為 `Opening` 或 `Playing` 時計算（開場吸菸 NPC 也會影響暴露值）。
+- 暴露值 100 時由 ExposureSystem 自己呼叫 `SetSpeedModifier("MaxExposure", 0.7)`，B、C 不用處理減速。
 
 ## 8. `SmokeSource` `Scripts/Monsters/SmokeSource.cs`（擁有者：A，B 掛在物件上）
 

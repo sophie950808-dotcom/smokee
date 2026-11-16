@@ -47,7 +47,10 @@ public class DevOverlay : MonoBehaviour
             ? _playerHealth.CurrentHp.ToString("F0") + " / " + _playerHealth.MaxHp.ToString("F0")
             : "N/A";
         string exposureText = _exposureSystem != null
-            ? _exposureSystem.Exposure.ToString("F0")
+            ? _exposureSystem.Exposure.ToString("F1")
+              + "（警示：" + (_exposureSystem.IsWarning ? "是" : "否")
+              + "，滿值：" + (_exposureSystem.IsMaxed ? "是" : "否") + "）\n"
+              + "煙霧中累計：" + _exposureSystem.SmokeSeconds.ToString("F1") + " 秒"
             : "N/A";
 
         string routeText = RouteManager.Instance != null

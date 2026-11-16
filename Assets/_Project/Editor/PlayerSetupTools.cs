@@ -11,6 +11,7 @@ using UnityEngine.SceneManagement;
 /// 3. A4：在 Player Prefab 補上 PlayerAttack／PlayerInteractor，並在 TestScene_A 放測試用假目標與互動物件
 /// 4. A5：在 TestScene_A 放 GameManager（開發者模式、自動開始倒數）與開發者工具
 /// 5. A9：在 TestScene_A 放 RouteManager 與死巷出口測試方塊
+/// 6. A6：Player Prefab 補上 ExposureSystem、地板擴大到 200 x 200、放 2 個假煙霧來源
 /// </summary>
 public static class PlayerSetupTools
 {
@@ -21,6 +22,9 @@ public static class PlayerSetupTools
     private const string EnvironmentRootName = "TestEnvironment";
     private const string A4RootName = "A4_TestObjects";
     private const string A9ExitName = "A9_AlleyExit";
+    private const string A6RootName = "A6_SmokeSources";
+    private const float FloorSize = 200f;
+    private static readonly string[] FloorAndOuterWallNames = { "Floor", "Wall_North", "Wall_South", "Wall_East", "Wall_West" };
 
     /// <summary>選單：A5。在 TestScene_A 放 GameManager，勾選 devMode 與 autoStartRound，並掛上 DevOverlay、DevHotkeys。</summary>
     [MenuItem("Tools/Smokee/A - 放置 A5 GameManager（開發者模式）")]
@@ -341,6 +345,7 @@ public static class PlayerSetupTools
         root.AddComponent<PlayerAttack>();
         root.AddComponent<PlayerInteractor>();
         root.AddComponent<TargetMarker>();
+        root.AddComponent<ExposureSystem>();
 
         // 身體：膠囊外型（拿掉膠囊自帶的碰撞體，碰撞交給 CharacterController）
         GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -388,14 +393,7 @@ public static class PlayerSetupTools
 
         Transform root = new GameObject(EnvironmentRootName).transform;
 
-        // 地板 40 x 40，上表面在 y = 0
-        CreateBlock("Floor", root, new Vector3(0f, -0.5f, 0f), new Vector3(40f, 1f, 40f), floorMaterial);
-
-        // 四面外牆，高 4
-        CreateBlock("Wall_North", root, new Vector3(0f, 2f, 20.5f), new Vector3(42f, 4f, 1f), wallMaterial);
-        CreateBlock("Wall_South", root, new Vector3(0f, 2f, -20.5f), new Vector3(42f, 4f, 1f), wallMaterial);
-        CreateBlock("Wall_East", root, new Vector3(20.5f, 2f, 0f), new Vector3(1f, 4f, 40f), wallMaterial);
-        CreateBlock("Wall_West", root, new Vector3(-20.5f, 2f, 0f), new Vector3(1f, 4f, 40f), wallMaterial);
+        BuildFloorAndOuterWalls(root, floorMaterial, wallMaterial);
 
         // 窄走廊（內寬約 2 公尺），測試第三人稱鏡頭會不會穿牆
         CreateBlock("Corridor_Left", root, new Vector3(5f, 1.5f, 5f), new Vector3(0.5f, 3f, 12f), wallMaterial);
@@ -414,6 +412,180 @@ public static class PlayerSetupTools
         CreateBlock("Box_A", root, new Vector3(3f, 0.5f, -6f), new Vector3(1f, 1f, 1f), boxMaterial);
         CreateBlock("Box_B", root, new Vector3(12f, 1f, -8f), new Vector3(2f, 2f, 2f), boxMaterial);
         CreateBlock("Box_C", root, new Vector3(-8f, 0.75f, 12f), new Vector3(1.5f, 1.5f, 1.5f), boxMaterial);
+    }
+
+    /// <summary>
+    /// A6：地板 200 x 200（上表面在 y = 0），四面外牆在 ±100、高 4。
+    /// 會先刪掉 root 底下舊的地板與外牆再重建，其他物件不動。
+    /// </summary>
+    private static void BuildFloorAndOuterWalls(Transform root, Material floorMaterial, Material wallMaterial)
+    {
+        foreach (string childName in FloorAndOuterWallNames)
+        {
+            Transform oldChild = root.Find(childName);
+            if (oldChild != null)
+            {
+                Object.DestroyImmediate(oldChild.gameObject);
+            }
+        }
+
+        float half = FloorSize * 0.5f;
+        CreateBlock("Floor", root, new Vector3(0f, -0.5f, 0f), new Vector3(FloorSize, 1f, FloorSize), floorMaterial);
+        CreateBlock("Wall_North", root, new Vector3(0f, 2f, half + 0.5f), new Vector3(FloorSize + 2f, 4f, 1f), wallMaterial);
+        CreateBlock("Wall_South", root, new Vector3(0f, 2f, -half - 0.5f), new Vector3(FloorSize + 2f, 4f, 1f), wallMaterial);
+        CreateBlock("Wall_East", root, new Vector3(half + 0.5f, 2f, 0f), new Vector3(1f, 4f, FloorSize), wallMaterial);
+        CreateBlock("Wall_West", root, new Vector3(-half - 0.5f, 2f, 0f), new Vector3(1f, 4f, FloorSize), wallMaterial);
+    }
+
+    /// <summary>
+    /// 選單：A6。Player Prefab 補上 ExposureSystem、地板擴大到 200 x 200，
+    /// 放 2 個假煙霧來源（半徑 50、75）與暫時的警示文字 OnGUI。
+    /// </summary>
+    [MenuItem("Tools/Smokee/A - 放置 A6 煙霧測試")]
+    public static void BuildA6SmokeTestMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        // 1. Player Prefab：沒有就新建（新建的已包含 ExposureSystem），有就只補上 ExposureSystem
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null)
+        {
+            CreatePlayerPrefab();
+        }
+        else
+        {
+            AddExposureSystemToExistingPrefab();
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+        // 2. 地板與外牆擴大；移除上次放的 A6 物件
+        Transform environmentRoot = null;
+        bool hasPlayer = false;
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.name == A6RootName)
+            {
+                Object.DestroyImmediate(rootObject);
+            }
+            else if (rootObject.name == EnvironmentRootName)
+            {
+                environmentRoot = rootObject.transform;
+            }
+            else if (rootObject.GetComponent<PlayerController>() != null)
+            {
+                hasPlayer = true;
+            }
+        }
+
+        EnsureFolder(MaterialFolder);
+        if (environmentRoot != null)
+        {
+            Material floorMaterial = GetOrCreateMaterial("TestA_Floor", new Color(0.45f, 0.45f, 0.45f));
+            Material wallMaterial = GetOrCreateMaterial("TestA_Wall", new Color(0.85f, 0.8f, 0.7f));
+            BuildFloorAndOuterWalls(environmentRoot, floorMaterial, wallMaterial);
+        }
+
+        // 3. 假煙霧來源與警示文字
+        Transform a6Root = new GameObject(A6RootName).transform;
+        Material smokeMaterial = GetOrCreateSmokeMaterial();
+
+        // 玩家出生在 (0, 0, -10)，在兩個範圍外；兩個範圍中間有重疊區（測試取最大值、不加總）
+        CreateFakeSmokeSource("SmokeSource_R50", a6Root, new Vector3(-40f, 2f, 50f), 50f, smokeMaterial);
+        CreateFakeSmokeSource("SmokeSource_R75", a6Root, new Vector3(50f, 2f, 60f), 75f, smokeMaterial);
+
+        GameObject warning = new GameObject("DebugExposureWarning");
+        warning.transform.SetParent(a6Root, false);
+        warning.AddComponent<DebugExposureWarning>();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Selection.activeGameObject = a6Root.gameObject;
+
+        string message = "A6 煙霧測試物件已放好並存檔。\n" +
+                         "灰色球是煙霧來源位置；煙霧範圍是 Scene 視窗裡的線框（選取物件時是橘色）。";
+        if (environmentRoot == null)
+        {
+            message += "\n\n注意：場景裡沒有 TestEnvironment，地板沒有擴大。請先執行「A - 建立 TestScene_A 測試環境」再執行這個選單。";
+        }
+        if (!hasPlayer)
+        {
+            message += "\n\n注意：場景裡沒有 Player。請先執行「A - 建立 TestScene_A 測試環境」。";
+        }
+
+        EditorUtility.DisplayDialog("完成", message, "好");
+    }
+
+    /// <summary>打開現有的 Player Prefab，補上缺少的 ExposureSystem，其他設定保留。</summary>
+    private static void AddExposureSystemToExistingPrefab()
+    {
+        GameObject contents = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            if (contents.GetComponent<ExposureSystem>() == null)
+            {
+                contents.AddComponent<ExposureSystem>();
+                PrefabUtility.SaveAsPrefabAsset(contents, PrefabPath);
+            }
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(contents);
+        }
+    }
+
+    /// <summary>建立假煙霧來源：直徑 4 公尺的灰色半透明球（只是位置標記，沒有碰撞體）＋ SmokeSource。</summary>
+    private static void CreateFakeSmokeSource(string name, Transform parent, Vector3 position, float radius, Material material)
+    {
+        GameObject sphere = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        sphere.name = name;
+        sphere.transform.SetParent(parent, false);
+        sphere.transform.localPosition = position;
+        sphere.transform.localScale = Vector3.one * 4f;
+        Object.DestroyImmediate(sphere.GetComponent<Collider>());
+        sphere.GetComponent<Renderer>().sharedMaterial = material;
+
+        SmokeSource source = sphere.AddComponent<SmokeSource>();
+        SerializedObject serializedSource = new SerializedObject(source);
+        serializedSource.FindProperty("_radius").floatValue = radius;
+        serializedSource.FindProperty("_isEmitting").boolValue = true;
+        serializedSource.ApplyModifiedPropertiesWithoutUndo();
+    }
+
+    /// <summary>取得（沒有就建立）灰色半透明的 URP 材質 TestA_Smoke。</summary>
+    private static Material GetOrCreateSmokeMaterial()
+    {
+        Material material = GetOrCreateMaterial("TestA_Smoke", new Color(0.55f, 0.55f, 0.55f, 0.45f));
+
+        // 把 URP Lit 材質設成透明（等同在 Inspector 把 Surface Type 改成 Transparent）
+        if (material.HasProperty("_Surface"))
+        {
+            material.SetFloat("_Surface", 1f);
+            material.SetFloat("_Blend", 0f);
+            material.SetOverrideTag("RenderType", "Transparent");
+            material.SetFloat("_SrcBlend", (float)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            material.SetFloat("_DstBlend", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            if (material.HasProperty("_SrcBlendAlpha"))
+            {
+                material.SetFloat("_SrcBlendAlpha", (float)UnityEngine.Rendering.BlendMode.One);
+                material.SetFloat("_DstBlendAlpha", (float)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            }
+            material.SetFloat("_ZWrite", 0f);
+            material.EnableKeyword("_SURFACE_TYPE_TRANSPARENT");
+            material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            EditorUtility.SetDirty(material);
+            AssetDatabase.SaveAssets();
+        }
+
+        return material;
     }
 
     private static GameObject CreateBlock(string name, Transform parent, Vector3 position, Vector3 scale, Material material)
