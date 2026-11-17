@@ -14,6 +14,9 @@ public class ExposureWarning : MonoBehaviour
 
     private void OnEnable()
     {
+        if (_exposureSystem == null)                                 // [I1 整合] 欄位空著時自動找玩家
+            _exposureSystem = FindFirstObjectByType<ExposureSystem>();
+
         if (_exposureSystem != null)
             _exposureSystem.OnWarningChanged += SetWarningVisible;
 

@@ -1544,10 +1544,7 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 8504423885799023848, guid: ab8723bf9bbc642479f6ffc7cbba4dfd, type: 3}
-      insertIndex: 3
-      addedObject: {fileID: 1271125828}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: ab8723bf9bbc642479f6ffc7cbba4dfd, type: 3}
 --- !u!1 &904469969
 GameObject:
@@ -2018,26 +2015,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &1271125820 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 8504423885799023848, guid: ab8723bf9bbc642479f6ffc7cbba4dfd, type: 3}
-  m_PrefabInstance: {fileID: 904461179}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &1271125828
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1271125820}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: aed2b42ec76e3634187d8e16fd8e7725, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  _maxHp: 100
-  _maxedDamagePerSecond: 5
-  _exposureSystem: {fileID: 0}
 --- !u!1 &1294732027
 GameObject:
   m_ObjectHideFlags: 0
@@ -2239,7 +2216,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fb7a2b41233accf47b19fc51b2e15ca5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _radius: 75
+  _radius: 20
   _isEmitting: 1
 --- !u!23 &1466484920
 MeshRenderer:
@@ -2540,7 +2517,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fb7a2b41233accf47b19fc51b2e15ca5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  _radius: 50
+  _radius: 10
   _isEmitting: 1
 --- !u!23 &1820126847
 MeshRenderer:

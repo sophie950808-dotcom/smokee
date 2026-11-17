@@ -346,6 +346,7 @@ public static class PlayerSetupTools
         root.AddComponent<PlayerInteractor>();
         root.AddComponent<TargetMarker>();
         root.AddComponent<ExposureSystem>();
+        root.AddComponent<PlayerHealth>();
 
         // 身體：膠囊外型（拿掉膠囊自帶的碰撞體，碰撞交給 CharacterController）
         GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
@@ -521,6 +522,72 @@ public static class PlayerSetupTools
             message += "\n\n注意：場景裡沒有 Player。請先執行「A - 建立 TestScene_A 測試環境」。";
         }
 
+        EditorUtility.DisplayDialog("完成", message, "好");
+    }
+
+    /// <summary>
+    /// 選單：I1 #6。在現有的 Player Prefab 補上 PlayerHealth（其他設定保留），
+    /// 再檢查 TestScene_A 是否因此出現兩個 PlayerHealth（只檢查、不修改場景）。
+    /// </summary>
+    [MenuItem("Tools/Smokee/A - Player Prefab 補上 PlayerHealth")]
+    public static void AddPlayerHealthToPrefabMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到 Player Prefab",
+                "找不到 " + PrefabPath + "。請先執行「A - 建立 Player Prefab」（新建的 Prefab 已包含 PlayerHealth）。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        // 1. Player Prefab 補上 PlayerHealth
+        bool added = false;
+        GameObject contents = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            if (contents.GetComponent<PlayerHealth>() == null)
+            {
+                contents.AddComponent<PlayerHealth>();
+                PrefabUtility.SaveAsPrefabAsset(contents, PrefabPath);
+                added = true;
+            }
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(contents);
+        }
+
+        string message = added
+            ? "Player Prefab 已補上 PlayerHealth。"
+            : "Player Prefab 本來就有 PlayerHealth，沒有修改。";
+
+        // 2. 檢查 TestScene_A 裡 PlayerHealth 的數量（不修改、不存檔）
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) != null)
+        {
+            Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+            int healthCount = 0;
+            foreach (GameObject rootObject in scene.GetRootGameObjects())
+            {
+                healthCount += rootObject.GetComponentsInChildren<PlayerHealth>(true).Length;
+            }
+
+            if (healthCount > 1)
+            {
+                message += "\n\n注意：TestScene_A 裡現在有 " + healthCount + " 個 PlayerHealth。" +
+                           "請在 Hierarchy 找到多出來的那個（場景裡另外加的，Inspector 元件名稱旁有藍色「+」符號），" +
+                           "在元件右上角 ⋮ 選 Remove Component，然後存檔。";
+            }
+            else
+            {
+                message += "\n\nTestScene_A 裡只有 " + healthCount + " 個 PlayerHealth，不用處理。";
+            }
+        }
+
+        Selection.activeObject = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath);
         EditorUtility.DisplayDialog("完成", message, "好");
     }
 

@@ -7,6 +7,8 @@ public class HUD : MonoBehaviour
     [Header("場景資料")]
     [Tooltip("拖入場景中的玩家血量元件。")]
     [SerializeField] private PlayerHealth _playerHealth;
+    [Tooltip("拖入玩家身上的互動元件。留空會自動在場景裡找。")]          // [I1 整合]
+    [SerializeField] private PlayerInteractor _playerInteractor;
 
     [Header("介面文字")]
     [Tooltip("顯示目前血量與最大血量。")]
@@ -15,12 +17,17 @@ public class HUD : MonoBehaviour
     [SerializeField] private TMP_Text _timeText;
     [Tooltip("顯示目前淨化百分比與目標。")]
     [SerializeField] private TMP_Text _progressText;
+    [Tooltip("顯示互動提示，例如「按 E 開啟寶箱」。沒有可互動物件時隱藏。")]  // [I1 整合]
+    [SerializeField] private TMP_Text _interactPromptText;
 
     private GameManager _gameManager;
     private int _displayedSeconds = -1;
 
     private void OnEnable()
     {
+        if (_playerHealth == null)                                   // [I1 整合] 欄位空著時自動找玩家
+            _playerHealth = FindFirstObjectByType<PlayerHealth>();
+
         if (_playerHealth != null)
         {
             _playerHealth.OnHpChanged += ShowHealth;
@@ -28,6 +35,17 @@ public class HUD : MonoBehaviour
         }
 
         BindGameManager(GameManager.Instance);
+
+        if (_playerInteractor == null)                               // [I1 整合] 互動提示
+            _playerInteractor = FindFirstObjectByType<PlayerInteractor>();
+
+        if (_playerInteractor != null)
+        {
+            _playerInteractor.OnFocusChanged += ShowInteractPrompt;
+            ShowInteractPrompt(_playerInteractor.CurrentTarget);
+        }
+        else
+            ShowInteractPrompt(null);
     }
 
     private void Start()
@@ -35,6 +53,9 @@ public class HUD : MonoBehaviour
         // 場景中所有物件完成 Awake 後，讀取初始血量。
         if (_playerHealth != null)
             ShowHealth(_playerHealth.CurrentHp, _playerHealth.MaxHp);
+
+        if (_playerInteractor != null)                               // [I1 整合] 啟動時先讀一次目前的互動目標
+            ShowInteractPrompt(_playerInteractor.CurrentTarget);
     }
 
     private void Update()
@@ -59,6 +80,9 @@ public class HUD : MonoBehaviour
         if (_playerHealth != null)
             _playerHealth.OnHpChanged -= ShowHealth;
 
+        if (_playerInteractor != null)                               // [I1 整合]
+            _playerInteractor.OnFocusChanged -= ShowInteractPrompt;
+
         BindGameManager(null);
     }
 
@@ -81,6 +105,18 @@ public class HUD : MonoBehaviour
     {
         if (_hpText != null)
             _hpText.text = $"{current:0.#} / {maximum:0.#}";
+    }
+
+    // [I1 整合] 有互動目標時顯示它的提示文字，沒有時隱藏
+    private void ShowInteractPrompt(IInteractable target)
+    {
+        if (_interactPromptText == null)
+            return;
+
+        bool hasPrompt = target != null && !string.IsNullOrEmpty(target.InteractPrompt);
+        _interactPromptText.enabled = hasPrompt;
+        if (hasPrompt)
+            _interactPromptText.text = target.InteractPrompt;
     }
 
     private void ShowProgress(float progress)
