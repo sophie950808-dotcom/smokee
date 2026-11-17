@@ -2,21 +2,21 @@ using System.Collections.Generic;
 using UnityEngine;
 
 /// <summary>
-/// µÒ©ÇÀH¾÷¥Í¦¨¾¹¡G±q³]©wªºÂI¦ì²M³æ¤¤ÀH¾÷©â¨ú¦ì¸m¥Í¦¨©Çª«
-/// ¤ä´©¦a¹Ï¥ô·NÂX®i¡A§K­«¼g¥N½X
+/// è¸æ€ªéš¨æ©Ÿç”Ÿæˆå™¨ï¼šå¾è¨­å®šçš„é»ä½æ¸…å–®ä¸­éš¨æ©ŸæŠ½å–ä½ç½®ç”Ÿæˆæ€ªç‰©
+/// æ”¯æ´åœ°åœ–ä»»æ„æ“´å±•ï¼Œå…é‡å¯«ä»£ç¢¼
 /// </summary>
 public class SmokeMonsterSpawner : MonoBehaviour
 {
-    [Header("µÒ©Ç Prefabs")]
+    [Header("è¸æ€ª Prefabs")]
     public GameObject smallMonsterPrefab;
     public GameObject largeMonsterPrefab;
 
-    [Header("¥Í¦¨¼Æ¶q³]©w (¥ø¹º®Ñ B4 ¶¥¬q: 4 ¤p 1 ¤j)")]
+    [Header("ç”Ÿæˆæ•¸é‡è¨­å®š (ä¼åŠƒæ›¸ B4 éšæ®µ: 4 å° 1 å¤§)")]
     public int smallCount = 4;
     public int largeCount = 1;
 
-    [Header("¥i¥Î¥Í¦¨ÂI¦ì (ªÅª«¥ó)")]
-    [Tooltip("±N¦a¹Ï¤Wªº SpawnPoint ªÅª«¥ó©ì¶i¨Ó")]
+    [Header("å¯ç”¨ç”Ÿæˆé»ä½ (ç©ºç‰©ä»¶)")]
+    [Tooltip("å°‡åœ°åœ–ä¸Šçš„ SpawnPoint ç©ºç‰©ä»¶æ‹–é€²ä¾†")]
     public List<Transform> spawnPoints = new List<Transform>();
 
     private void Start()
@@ -25,46 +25,46 @@ public class SmokeMonsterSpawner : MonoBehaviour
     }
 
     /// <summary>
-    /// °õ¦æÀH¾÷¥Í¦¨
+    /// åŸ·è¡Œéš¨æ©Ÿç”Ÿæˆ
     /// </summary>
     public void SpawnMonsters()
     {
         if (spawnPoints == null || spawnPoints.Count == 0)
         {
-            Debug.LogWarning("[µÒ©Ç¥Í¦¨] ¥¼³]¸m¥ô¦ó¥Í¦¨ÂI¡I");
+            Debug.LogWarning("[è¸æ€ªç”Ÿæˆ] æœªè¨­ç½®ä»»ä½•ç”Ÿæˆé»ï¼");
             return;
         }
 
-        // ½Æ»s¤@¥÷¥i¥ÎÂI¦ì¦Cªí¡AÁ×§K¦P¤@ÂI­«½Æ¥Í¦¨¨â°¦©Ç
+        // è¤‡è£½ä¸€ä»½å¯ç”¨é»ä½åˆ—è¡¨ï¼Œé¿å…åŒä¸€é»é‡è¤‡ç”Ÿæˆå…©éš»æ€ª
         List<Transform> availablePoints = new List<Transform>(spawnPoints);
 
-        // 1. ÀH¾÷¥Í¦¨¤j«¬µÒ©Ç
+        // 1. éš¨æ©Ÿç”Ÿæˆå¤§å‹è¸æ€ª
         for (int i = 0; i < largeCount; i++)
         {
             if (availablePoints.Count == 0) break;
             int randomIndex = Random.Range(0, availablePoints.Count);
             Transform spawnPt = availablePoints[randomIndex];
-            availablePoints.RemoveAt(randomIndex); // ²¾°£¤w¨Ï¥ÎªºÂI
+            availablePoints.RemoveAt(randomIndex); // ç§»é™¤å·²ä½¿ç”¨çš„é»
 
             if (largeMonsterPrefab != null)
             {
                 Instantiate(largeMonsterPrefab, spawnPt.position, spawnPt.rotation);
-                Debug.Log($"[¥Í¦¨] ¤j«¬µÒ©Ç¥Í¦¨©ó: {spawnPt.name}");
+                Debug.Log($"[ç”Ÿæˆ] å¤§å‹è¸æ€ªç”Ÿæˆæ–¼: {spawnPt.name}");
             }
         }
 
-        // 2. ÀH¾÷¥Í¦¨¤p«¬µÒ©Ç
+        // 2. éš¨æ©Ÿç”Ÿæˆå°å‹è¸æ€ª
         for (int i = 0; i < smallCount; i++)
         {
             if (availablePoints.Count == 0) break;
             int randomIndex = Random.Range(0, availablePoints.Count);
             Transform spawnPt = availablePoints[randomIndex];
-            availablePoints.RemoveAt(randomIndex); // ²¾°£¤w¨Ï¥ÎªºÂI
+            availablePoints.RemoveAt(randomIndex); // ç§»é™¤å·²ä½¿ç”¨çš„é»
 
             if (smallMonsterPrefab != null)
             {
                 Instantiate(smallMonsterPrefab, spawnPt.position, spawnPt.rotation);
-                Debug.Log($"[¥Í¦¨] ¤p«¬µÒ©Ç¥Í¦¨©ó: {spawnPt.name}");
+                Debug.Log($"[ç”Ÿæˆ] å°å‹è¸æ€ªç”Ÿæˆæ–¼: {spawnPt.name}");
             }
         }
     }

@@ -33,13 +33,6 @@ public class SmokeSource : MonoBehaviour
         set => _isEmitting = value;
     }
 
-    // 相容性別名：確保 B 組員程式碼中的 isActive 也能無縫使用
-    public bool isActive
-    {
-        get => _isEmitting;
-        set => _isEmitting = value;
-    }
-
     private void OnEnable()
     {
         if (!_all.Contains(this))

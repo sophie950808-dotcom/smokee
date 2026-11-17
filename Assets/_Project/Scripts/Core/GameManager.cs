@@ -77,6 +77,16 @@ public class GameManager : MonoBehaviour
     /// <summary>勝利或失敗結算時觸發（每局只觸發一次）。</summary>
     public event Action<ScoreResult> OnGameEnded;
 
+    /// <summary>
+    /// 每次進入 Play 時先清掉 static 的 Instance。
+    /// 保險用：就算專案關閉 Domain Reload，也不會留下上一次 Play 的舊值。
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+    private static void ResetStatics()
+    {
+        Instance = null;
+    }
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
