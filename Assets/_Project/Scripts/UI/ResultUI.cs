@@ -17,9 +17,9 @@ public class ResultUI : MonoBehaviour
 
     [Header("標題文字")]
     [Tooltip("勝利時的標題。")]
-    [SerializeField] private string _winTitle = "淨化成功";
+    [SerializeField] private string _winTitle = "淨化完成";
     [Tooltip("失敗時的標題。")]
-    [SerializeField] private string _loseTitle = "淨化失敗";
+    [SerializeField] private string _loseTitle = "任務結束";
 
     private GameManager _gameManager;
 
@@ -75,10 +75,10 @@ public class ResultUI : MonoBehaviour
             int smokeSeconds = Mathf.Max(0, Mathf.RoundToInt(result.SmokeSeconds));
             _statsText.text =
                 $"用時  {clearSeconds / 60:00}:{clearSeconds % 60:00}\n" +
-                $"剩餘血量  {result.RemainingHp:0.#}\n" +
+                $"剩餘血量  {Mathf.RoundToInt(result.RemainingHp)}\n" +
                 $"二手菸暴露時間 {smokeSeconds} 秒\n" +
-                $"總分  {result.TotalScore:0.0}\n" +
-                $"評級  {result.Grade}";
+                $"總分  {Mathf.RoundToInt(result.TotalScore)}\n" +
+                $"等級  {result.Grade}";
         }
 
         SetPanelVisible(true);
