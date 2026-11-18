@@ -12,7 +12,7 @@ using UnityEngine;
 public class SmokeMonster : MonoBehaviour, IHittable // [I1 整合] 實作 IHittable，讓 PlayerAttack 打得到
 {
     /// <summary>[I1 整合] 被擊敗時增加的淨化進度（規格：小 5／大 15）</summary>
-    public float ProgressValue => size == MonsterSize.Small ? 5f : 15f;
+    public float ProgressValue => size == MonsterSize.Small ? 20f : 40f;
 
     // [I1 整合] 規格（INTERFACES.md）名稱的唯讀屬性。不改原本欄位名稱，避免 Inspector 已存的設定遺失
     private static readonly List<SmokeMonster> allMonsters = new List<SmokeMonster>();

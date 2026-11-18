@@ -39,11 +39,7 @@ public class OpeningSequence : MonoBehaviour
 
     private void Start()
     {
-        // 初始設定：路人先隱藏
-        if (passerby != null)
-        {
-            passerby.gameObject.SetActive(false);
-        }
+        // 路人一直存在於場景中，不隱藏
 
         // 朋友初始先不冒煙
         if (npcSmokeParticles != null)
@@ -51,7 +47,7 @@ public class OpeningSequence : MonoBehaviour
             npcSmokeParticles.Stop();
         }
 
-        // [I1 整合] 監聽 RouteManager：玩家選好路線（不論是在 C 的對話框或下方的選擇框）時播放演出
+        // [I1 整合] 監聽 RouteManager：玩家選好路線時播放演出
         if (RouteManager.Instance != null)
         {
             RouteManager.Instance.OnRouteChosen += HandleRouteChosen;
@@ -98,26 +94,27 @@ public class OpeningSequence : MonoBehaviour
         {
             GUIStyle boxStyle = new GUIStyle(GUI.skin.box);
             boxStyle.fontSize = 20;
-            boxStyle.alignment = TextAnchor.MiddleCenter;
+            boxStyle.alignment = TextAnchor.UpperCenter;
+            boxStyle.padding = new RectOffset(20, 20, 25, 20);
 
             GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
             buttonStyle.fontSize = 18;
 
-            int boxWidth = 460;
-            int boxHeight = 200;
+            int boxWidth = 520;
+            int boxHeight = 220;
             float centerX = (Screen.width - boxWidth) / 2f;
             float centerY = (Screen.height - boxHeight) / 2f;
 
             GUI.Box(new Rect(centerX, centerY, boxWidth, boxHeight),
-                "車庫裡的朋友：\n「這裡沒人管，要不要來一根放鬆一下？」", boxStyle);
+                "車庫裡的朋友：\n\n「這裡沒人管，要不要來一根放鬆一下？」", boxStyle);
 
-            // [I1 整合] 按鈕改成通知 RouteManager，演出由 HandleRouteChosen 播放
-            if (GUI.Button(new Rect(centerX + 40, centerY + 120, 160, 50), "接受 (抽菸)", buttonStyle))
+            // 按鈕位置往下放，完全避開文字重疊
+            if (GUI.Button(new Rect(centerX + 50, centerY + 140, 180, 50), "接受 (抽菸)", buttonStyle))
             {
                 RouteManager.Instance.ChooseRoute(OpeningRoute.AcceptSmoke);
             }
 
-            if (GUI.Button(new Rect(centerX + 260, centerY + 120, 160, 50), "拒絕 (不抽)", buttonStyle))
+            if (GUI.Button(new Rect(centerX + 290, centerY + 140, 180, 50), "拒絕 (不抽)", buttonStyle))
             {
                 RouteManager.Instance.ChooseRoute(OpeningRoute.RefuseSmoke);
             }
@@ -198,32 +195,56 @@ public class OpeningSequence : MonoBehaviour
     {
         Debug.Log("[路線 A] 玩家走出車庫，身上散發二手菸！");
 
+        // 1. 鎖定玩家操作，防止挨揍時玩家還能跑走
+        PlayerController controller = player != null
+            ? player.GetComponent<PlayerController>()
+            : FindFirstObjectByType<PlayerController>();
+        if (controller != null) controller.SetControlEnabled(false);
+
         if (passerby != null)
         {
             passerby.gameObject.SetActive(true);
-            yield return new WaitForSeconds(0.3f);
 
-            // 路人快速衝撞玩家
-            float elapsed = 0f;
-            Vector3 startPos = passerby.position;
-            Vector3 targetPos = player != null ? player.position : startPos;
-
-            while (elapsed < 1.0f)
+            // 2. 路人先轉身瞪著玩家
+            Vector3 targetPos = player != null ? player.position : passerby.position + passerby.forward * 3f;
+            Vector3 lookDirection = (targetPos - passerby.position);
+            lookDirection.y = 0;
+            if (lookDirection != Vector3.zero)
             {
-                elapsed += Time.deltaTime * (passerbySpeed / Mathf.Max(0.5f, Vector3.Distance(startPos, targetPos)));
-                passerby.position = Vector3.Lerp(startPos, targetPos, elapsed);
+                passerby.rotation = Quaternion.LookRotation(lookDirection);
+            }
+
+            // 讓玩家看清楚路人生氣瞪人的反應 (停留 0.8 秒)
+            yield return new WaitForSeconds(0.8f);
+
+            // 3. 路人以生動的跑步速度 (約 3.5m/s) 跑向玩家
+            Vector3 startPos = passerby.position;
+            // 停在玩家身前 0.6 公尺處
+            Vector3 stopPos = targetPos - lookDirection.normalized * 0.6f;
+            float distance = Vector3.Distance(startPos, stopPos);
+            float runDuration = Mathf.Max(distance / 4.0f, 1.0f); // 至少跑 1 秒，讓眼睛跟得上
+            float elapsed = 0f;
+
+            while (elapsed < runDuration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.SmoothStep(0f, 1f, elapsed / runDuration);
+                passerby.position = Vector3.Lerp(startPos, stopPos, t);
                 yield return null;
             }
+
+            // 跑到玩家面前揮拳停頓感 (0.4 秒)
+            yield return new WaitForSeconds(0.4f);
         }
 
-        // 畫面轉黑
-        narrativeSubtitle = "門外路人吸到你產生的二手菸，憤怒地將你擊倒！\n\n【二手菸害人害己，遊戲失敗】";
+        // 4. 畫面轉黑
+        narrativeSubtitle = "門外路人吸到你飄出的二手菸，極度憤怒地上前痛扁了你！\n\n【二手菸害人害己，遊戲即將重新開始】";
         showSubtitle = true;
 
         float fade = 0f;
         while (fade < 1f)
         {
-            fade += Time.deltaTime * 3f;
+            fade += Time.deltaTime * 3.5f;
             blackFadeAlpha = Mathf.Clamp01(fade);
             yield return null;
         }
@@ -231,7 +252,6 @@ public class OpeningSequence : MonoBehaviour
         yield return new WaitForSeconds(3.5f);
 
         // 重新載入場景
-        // [I1 整合] 改成通知 RouteManager，由它負責重新載入場景（規格：B 不要自己 LoadScene）
         if (RouteManager.Instance != null)
         {
             RouteManager.Instance.NotifyOpeningFinished();
