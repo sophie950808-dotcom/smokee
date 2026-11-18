@@ -104,7 +104,7 @@ public class HUD : MonoBehaviour
     private void ShowHealth(float current, float maximum)
     {
         if (_hpText != null)
-            _hpText.text = $"{current:0.#} / {maximum:0.#}";
+            _hpText.text = $"{Mathf.RoundToInt(current)} / {Mathf.RoundToInt(maximum)}";
     }
 
     // [I1 整合] 有互動目標時顯示它的提示文字，沒有時隱藏
@@ -122,6 +122,6 @@ public class HUD : MonoBehaviour
     private void ShowProgress(float progress)
     {
         if (_progressText != null)
-            _progressText.text = $"{progress:0.#}% / 100%";
+            _progressText.text = $"{Mathf.RoundToInt(progress)}% / 100%";
     }
 }

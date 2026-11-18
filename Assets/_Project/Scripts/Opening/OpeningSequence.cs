@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using UnityEngine;
 
@@ -88,36 +88,18 @@ public class OpeningSequence : MonoBehaviour
 
     private void OnGUI()
     {
-        // 1. 開場選擇 UI (還沒選擇時顯示)
-        // [I1 整合] 改讀 RouteManager 的路線。C 的 C2OpeningDialog 放進 GameScene 後，由 A 決定保留哪一個選擇框
-        if (RouteManager.Instance != null && RouteManager.Instance.ChosenRoute == OpeningRoute.None)
+        // 1. 車庫新手教學提示文字 (往下移到 Y=115，完全避開頂部 HUD 資訊列)
+        if (!hasTriggeredExit && RouteManager.Instance != null && RouteManager.Instance.ChosenRoute != OpeningRoute.None)
         {
-            GUIStyle boxStyle = new GUIStyle(GUI.skin.box);
-            boxStyle.fontSize = 20;
-            boxStyle.alignment = TextAnchor.UpperCenter;
-            boxStyle.padding = new RectOffset(20, 20, 25, 20);
+            GUIStyle guideStyle = new GUIStyle(GUI.skin.box);
+            guideStyle.fontSize = 18;
+            guideStyle.alignment = TextAnchor.MiddleCenter;
+            guideStyle.normal.textColor = Color.yellow;
 
-            GUIStyle buttonStyle = new GUIStyle(GUI.skin.button);
-            buttonStyle.fontSize = 18;
-
-            int boxWidth = 520;
-            int boxHeight = 220;
-            float centerX = (Screen.width - boxWidth) / 2f;
-            float centerY = (Screen.height - boxHeight) / 2f;
-
-            GUI.Box(new Rect(centerX, centerY, boxWidth, boxHeight),
-                "車庫裡的朋友：\n\n「這裡沒人管，要不要來一根放鬆一下？」", boxStyle);
-
-            // 按鈕位置往下放，完全避開文字重疊
-            if (GUI.Button(new Rect(centerX + 50, centerY + 140, 180, 50), "接受 (抽菸)", buttonStyle))
-            {
-                RouteManager.Instance.ChooseRoute(OpeningRoute.AcceptSmoke);
-            }
-
-            if (GUI.Button(new Rect(centerX + 290, centerY + 140, 180, 50), "拒絕 (不抽)", buttonStyle))
-            {
-                RouteManager.Instance.ChooseRoute(OpeningRoute.RefuseSmoke);
-            }
+            int gWidth = 620;
+            int gHeight = 58;
+            float gx = (Screen.width - gWidth) / 2f;
+            GUI.Box(new Rect(gx, 115, gWidth, gHeight), "【新手引導】靠近吸菸者會吸入二手菸，視野會變暗！\n請操控角色走出車庫展開街道任務！", guideStyle);
         }
 
         // 2. 路線 A：畫面轉黑 + 字幕提示
@@ -190,66 +172,90 @@ public class OpeningSequence : MonoBehaviour
         }
     }
 
-    // --- 路線 A 演出：路人吸到二手菸上前揍死玩家 ➔ 畫面轉黑 ➔ 重新開始 ---
+    // --- 路線 A 演出：鏡頭強制對準路人 ➔ 路人衝撞玩家 ➔ 倒地黑屏 ---
     private IEnumerator RouteA_PunishAndDieRoutine()
     {
-        Debug.Log("[路線 A] 玩家走出車庫，身上散發二手菸！");
-
-        // 1. 鎖定玩家操作，防止挨揍時玩家還能跑走
+        // 1. 鎖定玩家操作
         PlayerController controller = player != null
             ? player.GetComponent<PlayerController>()
             : FindFirstObjectByType<PlayerController>();
         if (controller != null) controller.SetControlEnabled(false);
 
+        // 2. 原本的 Passerby 直接衝過來撞玩家
         if (passerby != null)
         {
             passerby.gameObject.SetActive(true);
 
-            // 2. 路人先轉身瞪著玩家
-            Vector3 targetPos = player != null ? player.position : passerby.position + passerby.forward * 3f;
-            Vector3 lookDirection = (targetPos - passerby.position);
-            lookDirection.y = 0;
-            if (lookDirection != Vector3.zero)
+            // 【核心修正】強制鏡頭和玩家轉身正對路人！
+            Vector3 lookAtPasserby = (passerby.position - player.position);
+            lookAtPasserby.y = 0;
+            if (lookAtPasserby != Vector3.zero && player != null)
             {
-                passerby.rotation = Quaternion.LookRotation(lookDirection);
+                player.rotation = Quaternion.LookRotation(lookAtPasserby);
+            }
+            // 【雙人全景側拍攝影機】同時拍到玩家與路人全身！
+            if (Camera.main != null && player != null)
+            {
+                Camera.main.fieldOfView = 85f;
+                // 1. 計算兩人的中點
+                Vector3 midPoint = (player.position + passerby.position) * 0.5f;
+                // 2. 計算兩人的連線方向與垂直側面方向
+                Vector3 betweenDir = (passerby.position - player.position).normalized;
+                Vector3 sideDir = Vector3.Cross(betweenDir, Vector3.up).normalized; // 垂直側面
+
+                // 3. 攝影機擺在側面 4.5 公尺處、抬高 1.8 公尺
+                Vector3 camPos = midPoint + sideDir * 4.5f + Vector3.up * 1.8f;
+                Camera.main.transform.position = camPos;
+                Camera.main.transform.LookAt(midPoint + Vector3.up * 0.9f);
             }
 
-            // 讓玩家看清楚路人生氣瞪人的反應 (停留 0.8 秒)
-            yield return new WaitForSeconds(0.8f);
+            // 停頓 0.35 秒，讓玩家看清楚路人全貌與廣角街景
+            yield return new WaitForSeconds(0.35f);
 
-            // 3. 路人以生動的跑步速度 (約 3.5m/s) 跑向玩家
-            Vector3 startPos = passerby.position;
-            // 停在玩家身前 0.6 公尺處
-            Vector3 stopPos = targetPos - lookDirection.normalized * 0.6f;
-            float distance = Vector3.Distance(startPos, stopPos);
-            float runDuration = Mathf.Max(distance / 4.0f, 1.0f); // 至少跑 1 秒，讓眼睛跟得上
-            float elapsed = 0f;
+            Vector3 targetPos = player != null ? player.position : passerby.position;
 
-            while (elapsed < runDuration)
+            // 朝向玩家衝過來 (速度 3.0 m/s，全程都在鏡頭正中央)
+            while (Vector3.Distance(passerby.position, targetPos) > 0.6f)
             {
-                elapsed += Time.deltaTime;
-                float t = Mathf.SmoothStep(0f, 1f, elapsed / runDuration);
-                passerby.position = Vector3.Lerp(startPos, stopPos, t);
+                passerby.position = Vector3.MoveTowards(passerby.position, targetPos, 3.0f * Time.deltaTime);
+                Vector3 dir = (targetPos - passerby.position);
+                dir.y = 0;
+                if (dir != Vector3.zero) passerby.rotation = Quaternion.LookRotation(dir);
                 yield return null;
             }
+        }
 
-            // 跑到玩家面前揮拳停頓感 (0.4 秒)
-            yield return new WaitForSeconds(0.4f);
+        // 3. 玩家被撞倒地
+        if (player != null)
+        {
+            float fallElapsed = 0f;
+            Quaternion startRot = player.rotation;
+            Quaternion targetRot = startRot * Quaternion.Euler(85f, 0f, 0f); // 倒地
+            Vector3 pStart = player.position;
+
+            while (fallElapsed < 0.25f)
+            {
+                fallElapsed += Time.deltaTime;
+                float ft = fallElapsed / 0.25f;
+                player.rotation = Quaternion.Slerp(startRot, targetRot, ft);
+                player.position = Vector3.Lerp(pStart, pStart + Vector3.down * 0.5f, ft);
+                yield return null;
+            }
         }
 
         // 4. 畫面轉黑
-        narrativeSubtitle = "門外路人吸到你飄出的二手菸，極度憤怒地上前痛扁了你！\n\n【二手菸害人害己，遊戲即將重新開始】";
+        narrativeSubtitle = "門外路人吸到你飄出的二手菸，憤怒地上前痛扁了你！\n\n【二手菸害人害己，遊戲即將重新開始】";
         showSubtitle = true;
 
         float fade = 0f;
         while (fade < 1f)
         {
-            fade += Time.deltaTime * 3.5f;
+            fade += Time.deltaTime * 4f;
             blackFadeAlpha = Mathf.Clamp01(fade);
             yield return null;
         }
 
-        yield return new WaitForSeconds(3.5f);
+        yield return new WaitForSeconds(1.5f);
 
         // 重新載入場景
         if (RouteManager.Instance != null)

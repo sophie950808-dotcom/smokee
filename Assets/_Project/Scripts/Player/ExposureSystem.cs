@@ -19,10 +19,10 @@ public class ExposureSystem : MonoBehaviour
 
     [Header("暴露值變化")]
     [Tooltip("在煙霧範圍內的上升速度係數。實際每秒上升 = 這個值 ×（1 − 距離 ÷ 半徑）")]
-    [SerializeField] private float _riseRate = 10f;
+    [SerializeField] private float _riseRate = 54f;
 
     [Tooltip("不在任何煙霧範圍內時，每秒下降多少")]
-    [SerializeField] private float _decayRate = 3f;
+    [SerializeField] private float _decayRate = 18f;
 
     [Header("門檻")]
     [Tooltip("暴露值大於或等於這個數字時顯示警示文字")]
