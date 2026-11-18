@@ -18,7 +18,9 @@
 - `SmokeMonster` 實作 `IHittable`；被擊敗時呼叫 `GameManager.Instance.AddPurificationProgress(ProgressValue)`
 - 菸怪與吸菸 NPC 都掛上 A 的 `SmokeSource` 元件
 - `OpeningSequence` 監聽 `RouteManager.Instance.OnRouteChosen`，演出結束呼叫 `RouteManager.Instance.NotifyOpeningFinished()`
-- 死巷出口 Trigger 呼叫 `RouteManager.Instance.NotifyPlayerLeftAlley()`
+  - 路線 A 的重新載入由 RouteManager 處理，OpeningSequence **不要自己 `LoadScene`**
+  - 開場期間玩家控制的分工見 `docs/INTERFACES.md` 第 5 節（場景開始由 RouteManager 鎖住；選完路線到演出結束由 B 決定；路線 B 結束由 RouteManager 恢復）
+- 死巷出口：放一個 Collider（勾選 Is Trigger），掛上 A 的 `AlleyExitTrigger` 元件即可，**不需要自己呼叫 `NotifyPlayerLeftAlley()`**
 - 畫面效果讀 `ExposureSystem.VisualExposure`
 - `EscortNPC` 實作 `IInteractable`，護送成功呼叫 `PlayerHealth.Heal(10)`
 

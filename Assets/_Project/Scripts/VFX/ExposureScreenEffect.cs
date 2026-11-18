@@ -1,62 +1,107 @@
 using UnityEngine;
+using UnityEngine.InputSystem; // [I1 æ•´åˆ] æ–°ç‰ˆ Input System
+using UnityEngine.Rendering;
+using UnityEngine.Rendering.Universal;
 
 /// <summary>
-/// ¼ÉÅSµe­±®ÄªG±±¨î¾¹ (¥ô°È B.5)
-/// ­t³d®Ú¾Ú¼ÉÅS­È (0~100) §e²{·t¨¤¡B¦â½ÕÅÜ¦ÇÃú¡BÃä½t²¿®§·P
-/// ¥ø¹º®Ñ³W®æ¡G4.5 ¸`¡B10.3 ¸`¡B18.3 ¸`
+/// æš´éœ²ç•«é¢æ•ˆæœæ§åˆ¶å™¨ (ä»»å‹™ B.5)
+/// è² è²¬æ ¹æ“šæš´éœ²å€¼ (0~100) å‘ˆç¾æš—è§’ã€è‰²èª¿è®Šç°éœ§ã€é‚Šç·£çª’æ¯æ„Ÿ
+/// ä¼åŠƒæ›¸è¦æ ¼ï¼š4.5 ç¯€ã€10.3 ç¯€ã€18.3 ç¯€
+/// [I1 æ•´åˆ] ç•«æ³•ç”± OnGUI æ”¹ç‚º URP Volumeï¼ˆè¦æ ¼ DECISIONS.mdï¼šç•«é¢å¾Œè£½ä½¿ç”¨ URP Volumeï¼‰ã€‚
+/// åŸå› ï¼šOnGUI ä¸€å®šç•«åœ¨æ‰€æœ‰ Canvas UI ä¸Šé¢ï¼Œæœƒè“‹ä½ HUDã€‚è¨ˆç®—æ–¹å¼èˆ‡ä¸Šé™ä¿è­·æ²¿ç”¨ B çš„è¨­è¨ˆã€‚
 /// </summary>
 public class ExposureScreenEffect : MonoBehaviour
 {
     public static ExposureScreenEffect Instance { get; private set; }
 
-    [Header("´ú¸Õ±M¥Î (B5 ¶¥¬q¥Î°²¼ÉÅS­È´ú¸Õ)")]
-    [Tooltip("¤Ä¿ï«á¥i¦b Inspector ©Ô°Ê¤U¤è·Æ±ì´ú¸Õ®ÄªG")]
+    [Header("æ¸¬è©¦å°ˆç”¨ (B5 éšæ®µç”¨å‡æš´éœ²å€¼æ¸¬è©¦)")]
+    [Tooltip("å‹¾é¸å¾Œå¯åœ¨ Inspector æ‹‰å‹•ä¸‹æ–¹æ»‘æ¡¿æ¸¬è©¦æ•ˆæœ")]
     public bool testMode = true;
 
     [Range(0f, 100f)]
-    [Tooltip("¤â°Ê´ú¸Õ¥Îªº¼ÉÅS­È (0 ~ 100)")]
+    [Tooltip("æ‰‹å‹•æ¸¬è©¦ç”¨çš„æš´éœ²å€¼ (0 ~ 100)")]
     public float fakeExposureValue = 0f;
 
-    [Header("·í«e¼ÉÅS­È (0~100)")]
+    [Header("ç•¶å‰æš´éœ²å€¼ (0~100)")]
     [Range(0f, 100f)]
     [SerializeField] private float currentExposure = 0f;
 
-    [Header("®ÄªG¤W­­«OÅ@ (¥ø¹º®Ñ 18.3 ¸`)")]
+    [Header("æ•ˆæœä¸Šé™ä¿è­· (ä¼åŠƒæ›¸ 18.3 ç¯€)")]
     [Range(0.3f, 0.95f)]
-    [Tooltip("·t¨¤»P·ÏÃúªº³Ì¤j¾B¾×³z©ú«×¡A«O¯d¤¤¥¡µø³¥²M´·")]
+    [Tooltip("æš—è§’èˆ‡ç…™éœ§çš„æœ€å¤§é®æ“‹é€æ˜åº¦ï¼Œä¿ç•™ä¸­å¤®è¦–é‡æ¸…æ™°")]
     public float maxAlphaLimit = 0.82f;
 
-    private Texture2D vignetteTexture;
+    // [I1 æ•´åˆ] URP Volume èˆ‡æ•ˆæœï¼ˆåœ¨ Awake ç”¨ç¨‹å¼å»ºç«‹ï¼‰
+    private Volume exposureVolume;
+    private VolumeProfile volumeProfile;
+    private Vignette vignette;
+    private ColorAdjustments colorAdjustments;
+    private ExposureSystem exposureSystem; // [I1 æ•´åˆ] ç©å®¶çš„æš´éœ²å€¼ä¾†æºï¼ˆè‡ªå‹•åœ¨å ´æ™¯è£¡æ‰¾ï¼‰
 
     private void Awake()
     {
         if (Instance == null) Instance = this;
-        else Destroy(gameObject);
+        else // [I1 æ•´åˆ] åªåˆªæ‰å¤šå‡ºä¾†çš„å…ƒä»¶ï¼Œä¸åˆªæ•´å€‹ç‰©ä»¶
+        {
+            Debug.LogWarning("[æš´éœ²ç•«é¢æ•ˆæœ] å ´æ™¯ä¸­æœ‰è¶…éä¸€å€‹ ExposureScreenEffectï¼Œå·²ç§»é™¤å¤šå‡ºä¾†çš„å…ƒä»¶ã€‚", this);
+            Destroy(this);
+            return; // ä¸å†å»ºç«‹ç¬¬äºŒå€‹ Volume
+        }
 
-        GenerateVignetteTexture();
+        CreateVolume(); // [I1 æ•´åˆ] åŸæœ¬æ˜¯ GenerateVignetteTexture()
     }
 
-    private void Update()
+    private void Start()
     {
-        // ´ú¸Õ¼Ò¦¡¤UÅª¨ú Inspector ªº·Æ±ì
-        if (testMode)
+        // [I1 æ•´åˆ] Main Camera æ²’é–‹å¾Œè£½æ™‚ Volume ä¸æœƒæœ‰æ•ˆæœï¼ŒåŸ·è¡Œæ™‚è‡ªå‹•æ‰“é–‹ï¼ˆä¸æœƒå­˜é€²å ´æ™¯ï¼‰
+        Camera mainCamera = Camera.main;
+        if (mainCamera != null)
         {
-            SetExposure(fakeExposureValue);
-
-            // ¤ä´©§Ö±¶Áä¤è«K´ú¸Õ¡G«ö¤pÁä½L + ¼W¥[¡A- ´î¤Ö
-            if (Input.GetKey(KeyCode.Equals) || Input.GetKey(KeyCode.KeypadPlus))
+            UniversalAdditionalCameraData cameraData = mainCamera.GetUniversalAdditionalCameraData();
+            if (cameraData != null && !cameraData.renderPostProcessing)
             {
-                fakeExposureValue = Mathf.Min(100f, fakeExposureValue + 30f * Time.deltaTime);
-            }
-            if (Input.GetKey(KeyCode.Minus) || Input.GetKey(KeyCode.KeypadMinus))
-            {
-                fakeExposureValue = Mathf.Max(0f, fakeExposureValue - 30f * Time.deltaTime);
+                cameraData.renderPostProcessing = true;
+                Debug.Log("[æš´éœ²ç•«é¢æ•ˆæœ] Main Camera çš„ Post Processing æ²’æœ‰é–‹ï¼Œå·²åœ¨åŸ·è¡Œæ™‚è‡ªå‹•æ‰“é–‹ã€‚æƒ³å›ºå®šçš„è©±è«‹åœ¨ Main Camera çš„ Inspector å‹¾é¸ Rendering â†’ Post Processingã€‚");
             }
         }
     }
 
+    private void OnDestroy()
+    {
+        // [I1 æ•´åˆ] æ¸…æ‰åŸ·è¡Œæ™‚å»ºç«‹çš„ Volume è¨­å®šæª”
+        if (volumeProfile != null) Destroy(volumeProfile);
+        if (Instance == this) Instance = null; // [I1 æ•´åˆ] æ¸…æ‰ Instanceï¼Œé¿å…æŒ‡å‘å·²åˆªé™¤çš„ç‰©ä»¶
+    }
+
+    private void Update()
+    {
+        // æ¸¬è©¦æ¨¡å¼ä¸‹è®€å– Inspector çš„æ»‘æ¡¿
+        if (testMode)
+        {
+            SetExposure(fakeExposureValue);
+
+            // æ”¯æ´å¿«æ·éµæ–¹ä¾¿æ¸¬è©¦ï¼šæŒ‰å°éµç›¤ + å¢åŠ ï¼Œ- æ¸›å°‘
+            Keyboard keyboard = Keyboard.current; // [I1 æ•´åˆ] æ”¹ç”¨æ–°ç‰ˆ Input System
+            if (keyboard != null && (keyboard.equalsKey.isPressed || keyboard.numpadPlusKey.isPressed))
+            {
+                fakeExposureValue = Mathf.Min(100f, fakeExposureValue + 30f * Time.deltaTime);
+            }
+            if (keyboard != null && (keyboard.minusKey.isPressed || keyboard.numpadMinusKey.isPressed))
+            {
+                fakeExposureValue = Mathf.Max(0f, fakeExposureValue - 30f * Time.deltaTime);
+            }
+        }
+        else // [I1 æ•´åˆ] éæ¸¬è©¦æ¨¡å¼ï¼šè®€ç©å®¶çš„çœŸå¯¦æš´éœ²å€¼ï¼ˆè¦æ ¼ï¼šB çš„ç•«é¢æ•ˆæœè®€ VisualExposureï¼‰
+        {
+            if (exposureSystem == null) exposureSystem = FindFirstObjectByType<ExposureSystem>();
+            if (exposureSystem != null) SetExposure(exposureSystem.VisualExposure);
+        }
+
+        UpdateVolume(); // [I1 æ•´åˆ] ä¾æš´éœ²å€¼æ›´æ–°æš—è§’èˆ‡è®Šç°
+    }
+
     /// <summary>
-    /// ¤½¶}¤èªk¡G³]©w¯u¹ê¼ÉÅS­È (¨Ñ¥¼¨Ó A ²Õ­ûªº ExposureSystem ©I¥s)
+    /// å…¬é–‹æ–¹æ³•ï¼šè¨­å®šçœŸå¯¦æš´éœ²å€¼ (ä¾›æœªä¾† A çµ„å“¡çš„ ExposureSystem å‘¼å«)
     /// </summary>
     public void SetExposure(float value)
     {
@@ -64,66 +109,60 @@ public class ExposureScreenEffect : MonoBehaviour
     }
 
     /// <summary>
-    /// °ÊºA¥Í¦¨¶ê§Îº¥¼h·t¨¤¶K¹Ï (§K¥~³¡¶K¹Ï¸ê·½¡A«OÃÒ¥ô¦ó¹q¸£³£¯à¶])
+    /// [I1 æ•´åˆ] å»ºç«‹å…¨åŸŸ Volumeï¼ŒåŠ ä¸Šæš—è§’ï¼ˆVignetteï¼‰èˆ‡èª¿è‰²ï¼ˆColorAdjustmentsï¼‰ï¼Œå–ä»£åŸæœ¬çš„æš—è§’è²¼åœ–
     /// </summary>
-    private void GenerateVignetteTexture()
+    private void CreateVolume()
     {
-        int size = 256;
-        vignetteTexture = new Texture2D(size, size, TextureFormat.RGBA32, false);
-        vignetteTexture.wrapMode = TextureWrapMode.Clamp;
+        GameObject volumeObject = new GameObject("ExposureVolume");
+        volumeObject.transform.SetParent(transform, false);
 
-        Vector2 center = new Vector2(size / 2f, size / 2f);
-        float maxDist = size / 2f;
+        exposureVolume = volumeObject.AddComponent<Volume>();
+        exposureVolume.isGlobal = true;
+        exposureVolume.priority = 100f; // æ¯”å ´æ™¯è£¡å…¶ä»– Volume å„ªå…ˆ
 
-        for (int y = 0; y < size; y++)
-        {
-            for (int x = 0; x < size; x++)
-            {
-                float dist = Vector2.Distance(new Vector2(x, y), center);
-                float normDist = Mathf.Clamp01(dist / maxDist);
+        volumeProfile = ScriptableObject.CreateInstance<VolumeProfile>();
+        exposureVolume.profile = volumeProfile;
 
-                // ®Ö¤ß³z©ú¡BÃä½tº¥¼hÅÜ¿@ (·t¦Ç·ÏÃú¦â)
-                float alpha = Mathf.SmoothStep(0f, 1f, normDist);
-                vignetteTexture.SetPixel(x, y, new Color(0.12f, 0.1f, 0.14f, alpha));
-            }
-        }
-        vignetteTexture.Apply();
+        vignette = volumeProfile.Add<Vignette>(true);
+        vignette.color.Override(new Color(0.12f, 0.1f, 0.14f)); // æ²¿ç”¨ B åŸæœ¬çš„æš—ç°ç…™éœ§è‰²
+        vignette.smoothness.Override(0.6f);
+        vignette.intensity.Override(0f);
+
+        colorAdjustments = volumeProfile.Add<ColorAdjustments>(true);
+        colorAdjustments.saturation.Override(0f);
+        colorAdjustments.postExposure.Override(0f);
+    }
+
+    /// <summary>
+    /// [I1 æ•´åˆ] ä¾æš´éœ²å€¼æ›´æ–°æ•ˆæœã€‚è¨ˆç®—æ–¹å¼æ²¿ç”¨ B åŸæœ¬çš„ OnGUI ç‰ˆæœ¬
+    /// </summary>
+    private void UpdateVolume()
+    {
+        if (vignette == null || colorAdjustments == null) return;
+
+        // è¨ˆç®—æš´éœ²å¼·åº¦æ¯”ç‡ (0.0 ~ 1.0)
+        float ratio = currentExposure / 100f;
+
+        // 1. ç…™éœ§æš—è§’ï¼šä¾æ¯”ä¾‹è¨ˆç®—å¼·åº¦ï¼Œä¸¦å—ä¸Šé™ä¿è­· (ä¼åŠƒ 18.3 ç¯€)
+        vignette.intensity.value = Mathf.Min(ratio * 1.05f, maxAlphaLimit);
+
+        // 2. æš´éœ²å€¼æ¥µé«˜ (>= 75) æ™‚çš„ç…™éœ§æ³›ç°çª’æ¯æ„Ÿï¼šé™ä½é£½å’Œåº¦ã€ç¨å¾®èª¿æš—
+        float greyRatio = currentExposure >= 75f ? (currentExposure - 75f) / 25f : 0f; // 0 ~ 1
+        colorAdjustments.saturation.value = -70f * greyRatio;
+        colorAdjustments.postExposure.value = -0.5f * greyRatio;
     }
 
     private void OnGUI()
     {
-        if (currentExposure <= 0.01f || vignetteTexture == null) return;
-
-        // ­pºâ¼ÉÅS±j«×¤ñ²v (0.0 ~ 1.0)
-        float ratio = currentExposure / 100f;
-
-        // ¨Ì¤ñ¨Ò­pºâ³z©ú«×»PÁY©ñ¡A¨Ã¨ü¤W­­«OÅ@ (¥ø¹º 18.3 ¸`)
-        float finalAlpha = Mathf.Min(ratio * 1.05f, maxAlphaLimit);
-
-        Color oldColor = GUI.color;
-
-        // 1. ·ÏÃú·t¨¤ÂĞ»\
-        GUI.color = new Color(1f, 1f, 1f, finalAlpha);
-        GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), vignetteTexture, ScaleMode.StretchToFill);
-
-        // 2. ¼ÉÅS­È·¥°ª (>= 75) ®Éªº·ÏÃúªx¦Ç²¿®§·P
-        if (currentExposure >= 75f)
-        {
-            float greyRatio = (currentExposure - 75f) / 25f; // 0 ~ 1
-            GUI.color = new Color(0.2f, 0.2f, 0.2f, greyRatio * 0.35f);
-            GUI.DrawTexture(new Rect(0, 0, Screen.width, Screen.height), Texture2D.whiteTexture);
-        }
-
-        GUI.color = oldColor;
-
-        // 3. ´ú¸Õ¼Ò¦¡®É¦b¥ª¤W¨¤Åã¥Ü¼Æ­È¤è«K°£¿ù
+        // [I1 æ•´åˆ] æš—è§’èˆ‡è®Šç°æ”¹ç”± URP Volume è™•ç†ï¼ŒOnGUI åªä¿ç•™æ¸¬è©¦æ¨¡å¼çš„é™¤éŒ¯æ–‡å­—
+        // 3. æ¸¬è©¦æ¨¡å¼æ™‚åœ¨å·¦ä¸Šè§’é¡¯ç¤ºæ•¸å€¼æ–¹ä¾¿é™¤éŒ¯
         if (testMode)
         {
             GUIStyle labelStyle = new GUIStyle(GUI.skin.label);
             labelStyle.fontSize = 16;
             labelStyle.normal.textColor = Color.yellow;
             GUI.Label(new Rect(20, 20, 400, 30),
-                $"[B5 µe­±´ú¸Õ] °²¼ÉÅS­È: {currentExposure:F1} / 100 (¥i¥ÎÁä½L + / - Áä½Õ¸Õ)", labelStyle);
+                $"[B5 ç•«é¢æ¸¬è©¦] å‡æš´éœ²å€¼: {currentExposure:F1} / 100 (å¯ç”¨éµç›¤ + / - éµèª¿è©¦)", labelStyle);
         }
     }
 }

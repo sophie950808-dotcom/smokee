@@ -4971,5 +4971,5 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: fb7a2b41233accf47b19fc51b2e15ca5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  radius: 50
-  isActive: 1
+  _radius: 7
+  _isEmitting: 1

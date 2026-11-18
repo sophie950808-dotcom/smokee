@@ -4,7 +4,7 @@ public class GarageExitTrigger : MonoBehaviour
 {
     private void OnTriggerEnter(Collider other)
     {
-        // §PÂ_¥u­n¶i¨Óªº¬Oª±®a (©Î¨ä¨­¤W±a¦³ CharacterController / Tag ¬° Player)
+        // åˆ¤æ–·åªè¦é€²ä¾†çš„æ˜¯ç©å®¶ (æˆ–å…¶èº«ä¸Šå¸¶æœ‰ CharacterController / Tag ç‚º Player)
         if (other.CompareTag("Player") || other.GetComponent<CharacterController>() != null)
         {
             OpeningSequence opening = FindFirstObjectByType<OpeningSequence>();

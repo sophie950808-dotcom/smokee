@@ -214,6 +214,11 @@ GameObject:
   - component: {fileID: 81861036114886381}
   - component: {fileID: 7065197529962214837}
   - component: {fileID: 7370497099756203005}
+  - component: {fileID: 6761735698405964579}
+  - component: {fileID: 7073611752231891722}
+  - component: {fileID: 4951681372804469816}
+  - component: {fileID: 1941588041381072306}
+  - component: {fileID: 6139919948243581778}
   m_Layer: 0
   m_Name: Player
   m_TagString: Untagged
@@ -296,3 +301,100 @@ MonoBehaviour:
   _cameraCollisionMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &6761735698405964579
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8504423885799023848}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 798d3f40e69fbe64b83de3e1fac3ae8b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _range: 2
+  _angle: 90
+  _originHeight: 1.2
+  _cooldown: 0.5
+  _hitCount: 1
+  _targetMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  _obstacleMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+--- !u!114 &7073611752231891722
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8504423885799023848}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 948226123b007994e8c53b64ccfcec94, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _range: 2.5
+  _originHeight: 1.2
+  _interactableMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  _obstacleMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+--- !u!114 &4951681372804469816
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8504423885799023848}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 250cee0784640954bac3848116e5fe66, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _attackMarkerPrefab: {fileID: 0}
+  _interactMarkerPrefab: {fileID: 0}
+  _attackColor: {r: 1, g: 0.35, b: 0.1, a: 1}
+  _interactColor: {r: 0.2, g: 0.9, b: 0.4, a: 1}
+  _size: 0.35
+  _height: 0.4
+  _heightAboveTarget: 0.3
+  _stackOffset: 0.6
+  _rotateSpeed: 90
+  _bobAmplitude: 0.08
+  _bobFrequency: 1.5
+--- !u!114 &1941588041381072306
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8504423885799023848}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 386c32ead01399547999455a5ca7ecaf, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _riseRate: 10
+  _decayRate: 3
+  _warningThreshold: 80
+  _maxedSpeedMultiplier: 0.7
+--- !u!114 &6139919948243581778
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8504423885799023848}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aed2b42ec76e3634187d8e16fd8e7725, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _maxHp: 100
+  _maxedDamagePerSecond: 5
+  _exposureSystem: {fileID: 0}

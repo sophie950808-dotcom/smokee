@@ -8,9 +8,6 @@ using UnityEngine;
 /// </summary>
 public class OpeningSequence : MonoBehaviour
 {
-    // 對外靜態事件：路線 B 結束時廣播，通知 A 組員的 RouteManager / GameManager
-    public static event Action OnOpeningFinished;
-
     [Header("角色與物件引用")]
     [Tooltip("吸菸的朋友 NPC")]
     public Transform smokingNPC;
@@ -30,13 +27,7 @@ public class OpeningSequence : MonoBehaviour
     [Header("路人速度設定")]
     public float passerbySpeed = 6.0f;
 
-    public enum RouteChoice
-    {
-        None,
-        RouteA_Accept, // 接受抽菸
-        RouteB_Refuse  // 拒絕抽菸
-    }
-    [HideInInspector] public RouteChoice currentChoice = RouteChoice.None;
+    // [I1 整合] 路線選擇改由 RouteManager 記錄（RouteManager.Instance.ChosenRoute），這裡不再另存一份
 
     private bool isDoorOpen = false;
     private bool hasTriggeredExit = false;
@@ -59,12 +50,51 @@ public class OpeningSequence : MonoBehaviour
         {
             npcSmokeParticles.Stop();
         }
+
+        // [I1 整合] 監聽 RouteManager：玩家選好路線（不論是在 C 的對話框或下方的選擇框）時播放演出
+        if (RouteManager.Instance != null)
+        {
+            RouteManager.Instance.OnRouteChosen += HandleRouteChosen;
+        }
+        else
+        {
+            Debug.LogWarning("[開場演出] 場景裡找不到 RouteManager，開場無法運作。", this);
+        }
+    }
+
+    private void OnDestroy()
+    {
+        // [I1 整合] 物件被刪除時取消監聽
+        if (RouteManager.Instance != null)
+        {
+            RouteManager.Instance.OnRouteChosen -= HandleRouteChosen;
+        }
+    }
+
+    /// <summary>
+    /// [I1 整合] RouteManager 通知玩家選好路線時呼叫：開門；拒絕路線時朋友點菸冒煙。
+    /// （原本寫在選擇框按鈕裡的內容搬到這裡）
+    /// </summary>
+    private void HandleRouteChosen(OpeningRoute route)
+    {
+        if (route == OpeningRoute.RefuseSmoke)
+        {
+            // 朋友點起菸成為死巷第一個煙霧來源
+            if (npcSmokeParticles != null) npcSmokeParticles.Play();
+            if (smokingNPC != null)
+            {
+                SmokeSource src = smokingNPC.GetComponentInChildren<SmokeSource>(); // [I1 整合] SmokeSource 掛在子物件 Capsule 上
+                if (src != null) src.IsEmitting = true;
+            }
+        }
+        StartCoroutine(OpenDoorSequence());
     }
 
     private void OnGUI()
     {
         // 1. 開場選擇 UI (還沒選擇時顯示)
-        if (currentChoice == RouteChoice.None)
+        // [I1 整合] 改讀 RouteManager 的路線。C 的 C2OpeningDialog 放進 GameScene 後，由 A 決定保留哪一個選擇框
+        if (RouteManager.Instance != null && RouteManager.Instance.ChosenRoute == OpeningRoute.None)
         {
             GUIStyle boxStyle = new GUIStyle(GUI.skin.box);
             boxStyle.fontSize = 20;
@@ -81,23 +111,15 @@ public class OpeningSequence : MonoBehaviour
             GUI.Box(new Rect(centerX, centerY, boxWidth, boxHeight),
                 "車庫裡的朋友：\n「這裡沒人管，要不要來一根放鬆一下？」", boxStyle);
 
+            // [I1 整合] 按鈕改成通知 RouteManager，演出由 HandleRouteChosen 播放
             if (GUI.Button(new Rect(centerX + 40, centerY + 120, 160, 50), "接受 (抽菸)", buttonStyle))
             {
-                currentChoice = RouteChoice.RouteA_Accept;
-                StartCoroutine(OpenDoorSequence());
+                RouteManager.Instance.ChooseRoute(OpeningRoute.AcceptSmoke);
             }
 
             if (GUI.Button(new Rect(centerX + 260, centerY + 120, 160, 50), "拒絕 (不抽)", buttonStyle))
             {
-                currentChoice = RouteChoice.RouteB_Refuse;
-                // 朋友點起菸成為死巷第一個煙霧來源
-                if (npcSmokeParticles != null) npcSmokeParticles.Play();
-                if (smokingNPC != null)
-                {
-                    SmokeSource src = smokingNPC.GetComponent<SmokeSource>();
-                    if (src != null) src.IsEmitting = true;
-                }
-                StartCoroutine(OpenDoorSequence());
+                RouteManager.Instance.ChooseRoute(OpeningRoute.RefuseSmoke);
             }
         }
 
@@ -140,6 +162,13 @@ public class OpeningSequence : MonoBehaviour
             }
         }
         isDoorOpen = true;
+
+        // [I1 整合] 門開了，恢復玩家控制讓玩家走出車庫（RouteManager 在場景開始時把控制關掉了）
+        PlayerController controller = player != null
+            ? player.GetComponent<PlayerController>()
+            : FindFirstObjectByType<PlayerController>();
+        if (controller != null) controller.SetControlEnabled(true);
+
         Debug.Log("[開場演出] 車庫門開啟，請操控角色走出車庫！");
     }
 
@@ -151,11 +180,14 @@ public class OpeningSequence : MonoBehaviour
         if (!isDoorOpen || hasTriggeredExit) return;
         hasTriggeredExit = true;
 
-        if (currentChoice == RouteChoice.RouteA_Accept)
+        // [I1 整合] 改讀 RouteManager 記錄的路線
+        OpeningRoute route = RouteManager.Instance != null ? RouteManager.Instance.ChosenRoute : OpeningRoute.None;
+
+        if (route == OpeningRoute.AcceptSmoke)
         {
             StartCoroutine(RouteA_PunishAndDieRoutine());
         }
-        else if (currentChoice == RouteChoice.RouteB_Refuse)
+        else if (route == OpeningRoute.RefuseSmoke)
         {
             StartCoroutine(RouteB_EnterStreetRoutine());
         }
@@ -199,9 +231,11 @@ public class OpeningSequence : MonoBehaviour
         yield return new WaitForSeconds(3.5f);
 
         // 重新載入場景
-        UnityEngine.SceneManagement.SceneManager.LoadScene(
-            UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex
-        );
+        // [I1 整合] 改成通知 RouteManager，由它負責重新載入場景（規格：B 不要自己 LoadScene）
+        if (RouteManager.Instance != null)
+        {
+            RouteManager.Instance.NotifyOpeningFinished();
+        }
     }
 
     // --- 路線 B 演出：直接進入街道，通知 RouteManager ---
@@ -214,14 +248,11 @@ public class OpeningSequence : MonoBehaviour
             passerby.gameObject.SetActive(true);
         }
 
-        // 關鍵：廣播通知 A 組員的 RouteManager / GameManager
-        OnOpeningFinished?.Invoke();
-
-        // 也可以透過 SendMessage 或尋找 RouteManager 防呆調用 (企劃書第 10.4 節)
-        GameObject routeMgr = GameObject.Find("RouteManager");
-        if (routeMgr != null)
+        // 關鍵：通知 A 組員的 RouteManager 開場結束
+        // [I1 整合] 改成直接呼叫 RouteManager（原本的 static 事件與 SendMessage 沒有人接收）
+        if (RouteManager.Instance != null)
         {
-            routeMgr.SendMessage("OnOpeningFinished", SendMessageOptions.DontRequireReceiver);
+            RouteManager.Instance.NotifyOpeningFinished();
         }
 
         yield return null;
