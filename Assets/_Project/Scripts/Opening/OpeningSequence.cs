@@ -27,6 +27,16 @@ public class OpeningSequence : MonoBehaviour
     [Header("路人速度設定")]
     public float passerbySpeed = 6.0f;
 
+    [Header("接受吸菸揮拳演出（GameScene）")]
+    [Tooltip("勾選後接受路線播放揮拳、倒地與文字說明，再回到開場選擇；其他場景仍保留原演出")]
+    [SerializeField] private bool _acceptSmokeShowsResult;
+    [Tooltip("門口 NPC 的拳頭物件；由場景設定工具接好")]
+    [SerializeField] private Transform _punchHand;
+    [Tooltip("NPC 與玩家的水平攻擊距離")]
+    [SerializeField] private float _attackDistance = 1.2f;
+    [Tooltip("出拳後到命中的秒數")]
+    [SerializeField] private float _punchDuration = 0.3f;
+
     // [I1 整合] 路線選擇改由 RouteManager 記錄（RouteManager.Instance.ChosenRoute），這裡不再另存一份
 
     private bool isDoorOpen = false;
@@ -73,7 +83,7 @@ public class OpeningSequence : MonoBehaviour
     /// </summary>
     private void HandleRouteChosen(OpeningRoute route)
     {
-        if (route == OpeningRoute.RefuseSmoke)
+        if (route == OpeningRoute.RefuseSmoke || _acceptSmokeShowsResult)
         {
             // 朋友點起菸成為死巷第一個煙霧來源
             if (npcSmokeParticles != null) npcSmokeParticles.Play();
@@ -164,12 +174,108 @@ public class OpeningSequence : MonoBehaviour
 
         if (route == OpeningRoute.AcceptSmoke)
         {
-            StartCoroutine(RouteA_PunishAndDieRoutine());
+            StartCoroutine(_acceptSmokeShowsResult
+                ? RouteA_PunchAndRestartRoutine()
+                : RouteA_PunishAndDieRoutine());
         }
         else if (route == OpeningRoute.RefuseSmoke)
         {
             StartCoroutine(RouteB_EnterStreetRoutine());
         }
+    }
+
+    // GameScene 專用：沿用現有膠囊角色與旋轉倒地演出，不影響其他場景。
+    private IEnumerator RouteA_PunchAndRestartRoutine()
+    {
+        PlayerController controller = player != null ? player.GetComponent<PlayerController>() : null;
+        if (player == null || passerby == null || controller == null || _punchHand == null)
+        {
+            Debug.LogError("[開場演出] 接受路線缺少玩家、路人或拳頭引用。", this);
+            yield break;
+        }
+
+        controller.SetControlEnabled(false);
+        // SetControlEnabled 仍會更新鏡頭與重力；演出期間停用元件，避免鏡頭被覆蓋。
+        controller.enabled = false;
+        CharacterController character = player.GetComponent<CharacterController>();
+        if (character != null) character.enabled = false;
+        foreach (Renderer body in player.GetComponentsInChildren<Renderer>(true)) body.enabled = true;
+        passerby.gameObject.SetActive(true);
+
+        Vector3 towardNpc = passerby.position - player.position;
+        towardNpc.y = 0f;
+        if (towardNpc.sqrMagnitude > 0.001f) player.rotation = Quaternion.LookRotation(towardNpc);
+        Vector3 side = Vector3.Cross(towardNpc.normalized, Vector3.up);
+        Camera camera = Camera.main;
+        if (camera != null)
+        {
+            camera.fieldOfView = 65f;
+            Vector3 focus = (player.position + passerby.position) * 0.5f;
+            focus.y = player.position.y + 0.9f;
+            camera.transform.position = focus + side * Mathf.Max(4.5f, towardNpc.magnitude * 0.8f) + Vector3.up * 1.8f;
+            camera.transform.LookAt(focus);
+        }
+        yield return new WaitForSeconds(0.35f);
+
+        Debug.Log("[接受路線] 門口 NPC 開始跑向玩家。", this);
+        Vector3 npcStart = passerby.position;
+        float elapsed = 0f;
+        while (true)
+        {
+            Vector3 direction = player.position - passerby.position;
+            direction.y = 0f;
+            if (direction.magnitude <= _attackDistance) break;
+            passerby.rotation = Quaternion.LookRotation(direction);
+            Vector3 target = new Vector3(player.position.x, npcStart.y, player.position.z);
+            Vector3 next = Vector3.MoveTowards(passerby.position, target,
+                Mathf.Max(0.1f, passerbySpeed) * Time.deltaTime);
+            elapsed += Time.deltaTime;
+            next.y = npcStart.y + Mathf.Abs(Mathf.Sin(elapsed * 14f)) * 0.08f;
+            passerby.position = next;
+            yield return null;
+        }
+        passerby.position = new Vector3(passerby.position.x, npcStart.y, passerby.position.z);
+        Vector3 toPlayer = player.position - passerby.position;
+        toPlayer.y = 0f;
+        if (toPlayer.sqrMagnitude > 0.001f) passerby.rotation = Quaternion.LookRotation(toPlayer);
+
+        _punchHand.gameObject.SetActive(true);
+        Vector3 handRest = _punchHand.localPosition;
+        Vector3 handHit = new Vector3(0.15f, handRest.y, _attackDistance - 0.15f);
+        float punchSeconds = Mathf.Max(0.05f, _punchDuration);
+        for (float t = 0f; t < punchSeconds; t += Time.deltaTime)
+        {
+            _punchHand.localPosition = Vector3.Lerp(handRest, handHit, t / punchSeconds);
+            yield return null;
+        }
+        _punchHand.localPosition = handHit;
+        Debug.Log("[接受路線] NPC 揮拳命中，玩家倒地。", this);
+
+        Quaternion startRotation = player.rotation;
+        Vector3 startPosition = player.position;
+        for (float t = 0f; t < 0.45f; t += Time.deltaTime)
+        {
+            float fraction = Mathf.SmoothStep(0f, 1f, t / 0.45f);
+            player.rotation = Quaternion.Slerp(startRotation, startRotation * Quaternion.Euler(-85f, 0f, 0f), fraction);
+            player.position = startPosition + Vector3.up * (0.4f * fraction);
+            _punchHand.localPosition = Vector3.Lerp(handHit, handRest, fraction);
+            yield return null;
+        }
+        player.rotation = startRotation * Quaternion.Euler(-85f, 0f, 0f);
+        player.position = startPosition + Vector3.up * 0.4f;
+        yield return new WaitForSeconds(0.6f);
+        while (blackFadeAlpha < 1f)
+        {
+            blackFadeAlpha = Mathf.Clamp01(blackFadeAlpha + Time.deltaTime * 2f);
+            yield return null;
+        }
+        narrativeSubtitle = "因為你抽菸臭到路人，\n所以你被揍死了。\n\n即將回到最初的選擇……";
+        showSubtitle = true;
+        Debug.Log("[接受路線] 顯示死亡說明，接著回到開場選擇。", this);
+        yield return new WaitForSeconds(3f);
+        // 保留黑幕與說明，沿用 RouteManager 的接受路線重載流程。
+        if (RouteManager.Instance != null)
+            RouteManager.Instance.NotifyOpeningFinished();
     }
 
     // --- 路線 A 演出：鏡頭強制對準路人 ➔ 路人衝撞玩家 ➔ 倒地黑屏 ---

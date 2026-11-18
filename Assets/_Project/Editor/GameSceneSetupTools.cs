@@ -24,6 +24,56 @@ public static class GameSceneSetupTools
     private const string UiCanvasName = "GameUI_Canvas";
     private const string AlleyExitName = "AlleyExit_Trigger";
 
+    /// <summary>只設定 GameScene 接受吸菸的出口演出，保留現有玩家、管理器與 UI。</summary>
+    [MenuItem("Tools/Smokee/接受吸菸 - 設定出口揮拳演出")]
+    public static void SetupAcceptSmokeFailure()
+    {
+        if (EditorApplication.isPlaying) return;
+        Scene scene = SceneManager.GetActiveScene();
+        if (scene.path != GameScenePath)
+        {
+            Debug.LogError("請先開啟 GameScene，沒有修改其他場景。");
+            return;
+        }
+        OpeningSequence opening = Object.FindFirstObjectByType<OpeningSequence>();
+        if (opening == null || opening.passerby == null || opening.player == null) return;
+        Transform npc = opening.passerby;
+        // 舊路人模型偏離根物件七公尺：讓根物件回到模型位置，保持模型世界座標不變。
+        Renderer body = npc.GetComponentInChildren<Renderer>();
+        if (body == null) return;
+        Undo.RecordObject(npc, "設定門口 NPC");
+        Vector3 offset = body.transform.position - npc.position;
+        var childPositions = new Dictionary<Transform, Vector3>();
+        foreach (Transform child in npc) childPositions[child] = child.position;
+        npc.position += offset;
+        foreach (var child in childPositions)
+        {
+            Undo.RecordObject(child.Key, "保留 NPC 模型位置");
+            child.Key.position = child.Value;
+        }
+        Transform hand = npc.Find("PunchHand");
+        if (hand == null)
+        {
+            GameObject fist = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            fist.name = "PunchHand";
+            Undo.RegisterCreatedObjectUndo(fist, "建立簡易拳頭");
+            Object.DestroyImmediate(fist.GetComponent<Collider>());
+            fist.transform.SetParent(npc, false);
+            fist.transform.localPosition = new Vector3(0.45f, 0.2f, 0.25f);
+            fist.transform.localScale = Vector3.one * 0.35f;
+            fist.GetComponent<Renderer>().sharedMaterial = body.sharedMaterial;
+            hand = fist.transform;
+        }
+        hand.gameObject.SetActive(false);
+        SerializedObject settings = new SerializedObject(opening);
+        settings.FindProperty("_acceptSmokeShowsResult").boolValue = true;
+        settings.FindProperty("_punchHand").objectReferenceValue = hand;
+        settings.ApplyModifiedProperties();
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Debug.Log("[接受路線設定] GameScene 已儲存；沿用出口、NPC、Player、ResultUI，拒絕路線計時維持原樣。");
+    }
+
     /// <summary>選單：I1 #5。組裝 GameScene，完成後存檔並顯示做了哪些事。</summary>
     [MenuItem("Tools/Smokee/I1 - 組裝 GameScene")]
     public static void AssembleGameSceneMenu()
