@@ -8,7 +8,8 @@
 > 使用者都是程式、Git 與 vibecoding 的初學者。請用**繁體中文**，用初學者聽得懂的話說明。
 
 ## 專案
-- 二手菸危害宣導遊戲，Unity 3D，Windows PC，鍵盤＋滑鼠
+- 《菸菸一熄》二手菸危害宣導遊戲，Unity 3D，Windows PC，鍵盤＋滑鼠
+- 新版流程（2026-11-22 起）：沒有倒數計時；新手教學 → 第一階段打菸怪 → 第二階段三個 NPC 故事事件 → 第三階段 BOSS 戰；HP 歸零才失敗
 - Unity 版本 **6000.0.43f1**（三人相同，不得升級或降級）
 - 規格以 `docs/DECISIONS.md` 為準（優先於企劃書）
 - 跨模組的類別、方法、事件名稱以 `docs/INTERFACES.md` 為準
@@ -59,9 +60,9 @@ AI 沒辦法在 Unity 裡按 Play。完成後只能說「程式寫好了，請�
 
 | 組員 | 負責 |
 |---|---|
-| A | `Scripts/Core/`、`Scripts/Player/`、`Scripts/Combat/`、`Scripts/Interaction/`、`Scripts/DevTools/`、`Scripts/Monsters/SmokeSource.cs`、`TestScene_A` |
-| B | `Scripts/Monsters/`（SmokeSource 除外）、`Scripts/Opening/`、`Scripts/NPC/`、`Scripts/VFX/`、**`GameScene.unity`**、`TestScene_B` |
-| C | `Scripts/UI/`、`Scripts/Items/`、`Scripts/Quiz/`、**`MainMenu.unity`**、`TestScene_C` |
+| A | `Scripts/Core/`、`Scripts/Player/`、`Scripts/Combat/`、`Scripts/Interaction/`、`Scripts/Boss/`（BOSS 戰鬥邏輯、吸菸 NPC）、`Scripts/DevTools/`、`Scripts/Monsters/SmokeSource.cs`、`TestScene_A` |
+| B | `Scripts/Monsters/`（SmokeSource 除外）、`Scripts/Opening/`、`Scripts/NPC/`（故事事件）、`Scripts/VFX/`（含 BOSS 外觀特效）、**`GameScene.unity`**、`TestScene_B` |
+| C | `Scripts/UI/`、`Scripts/Items/`、`Scripts/Quiz/`（舊問答模組，由 C 在 Unity 中刪除）、**`MainMenu.unity`**、`TestScene_C` |
 | **只有 A 能改** | `AGENTS.md`、`CLAUDE.md`、`GEMINI.md`、`docs/` 全部、`ProjectSettings/`、`Packages/manifest.json` |
 
 - **只改使用者負責的檔案。** 任務需要改到別人的檔案時，停下來告訴使用者「這需要找 ○○ 討論」。
@@ -75,7 +76,7 @@ AI 沒辦法在 Unity 裡按 Play。完成後只能說「程式寫好了，請�
 4. **MonoBehaviour 的類別名稱必須和檔名完全相同。**
 5. 不要建立重複的管理器（例如第二個 GameManager），也不要另外保存淨化進度、HP、暴露值等狀態的副本。一律讀取 `docs/INTERFACES.md` 定義的屬性與事件。
 6. 輸入：使用新版 Input System（`using UnityEngine.InputSystem;`，`Keyboard.current`、`Mouse.current`）。**不要用舊版 `Input.GetKey`、`Input.GetAxis`。**
-7. 只有 A 的 PlayerInteractor 讀 E 鍵、只有 GameManager 讀 Esc 鍵。其他腳本不要自己讀這兩個鍵。
+7. 只有 A 的 PlayerInteractor 讀 E 鍵、只有 GameManager 讀 Esc 鍵。其他腳本不要自己讀這兩個鍵。E 鍵統一用在 NPC 對話與接任務、故事互動、寶箱、捏熄菸蒂（含 QTE 連打）；要被 E 互動的物件請實作 `IInteractable`。**不要使用 Q 鍵。**
 8. Unity 6 API：用 `Rigidbody.linearVelocity`（不是 `velocity`）、`FindFirstObjectByType`（不是 `FindObjectOfType`）。
 9. 暫停時 `Time.timeScale = 0`，UI 動畫請用 `Time.unscaledDeltaTime`。
 
@@ -96,9 +97,9 @@ AI 沒辦法在 Unity 裡按 Play。完成後只能說「程式寫好了，請�
 Assets/_Project/
   Scenes/      MainMenu, GameScene, TestScene_A, TestScene_B, TestScene_C
   Scripts/
-    Core/  Player/  Combat/  Interaction/      ← A
-    DevTools/                                  ← A（測試用假物件，只在測試場景用）
-    Monsters/  Opening/  NPC/  VFX/            ← B（SmokeSource.cs 是 A 的）
-    Items/  Quiz/  UI/                         ← C
+    Core/  Player/  Combat/  Interaction/  Boss/   ← A
+    DevTools/                                      ← A（測試用假物件，只在測試場景用）
+    Monsters/  Opening/  NPC/  VFX/                ← B（SmokeSource.cs 是 A 的）
+    Items/  UI/                                    ← C（Quiz/ 為舊模組，待刪除）
   Editor/  Prefabs/  Materials/  Models/  Audio/  VFX/  UI/  ScriptableObjects/
 ```
