@@ -5194,7 +5194,7 @@ MonoBehaviour:
   _playerController: {fileID: 0}
   _playerHealth: {fileID: 0}
   _exposureSystem: {fileID: 0}
-  _devMode: 1
+  _devMode: 0
   _autoStartRound: 0
 --- !u!4 &178173666
 Transform:
