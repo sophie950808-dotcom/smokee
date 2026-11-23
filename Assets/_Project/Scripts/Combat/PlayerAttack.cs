@@ -26,7 +26,7 @@ public class PlayerAttack : MonoBehaviour
     [SerializeField] private float _cooldown = 0.5f;
 
     [Header("傷害")]
-    [Tooltip("每次命中呼叫 TakeHit 時傳入的次數。預設 1；之後吸入劑道具會用程式改成 3")]
+    [Tooltip("每次命中呼叫 TakeHit 時傳入的次數。v3.1 固定 1（吸入劑已刪除）")]
     [Min(1)]
     [SerializeField] private int _hitCount = 1;
 
@@ -37,7 +37,8 @@ public class PlayerAttack : MonoBehaviour
     [Tooltip("哪些 Layer 會擋住攻擊（牆）。預設全部；Trigger 碰撞體不會擋")]
     [SerializeField] private LayerMask _obstacleMask = ~0;
 
-    /// <summary>每次命中時傳給 TakeHit 的次數（最小 1）。吸入劑道具效果期間改成 3，結束改回 1。</summary>
+    /// <summary>【即將移除】每次命中時傳給 TakeHit 的次數（最小 1）。v3.1 已刪除吸入劑，固定 1。</summary>
+    [Obsolete("v3.1 已刪除吸入劑，固定 1。A13 刪除。")]
     public int HitCount
     {
         get => _hitCount;
@@ -78,7 +79,8 @@ public class PlayerAttack : MonoBehaviour
     private void Update()
     {
         // 每幀先算出「現在會打到誰」：給頭上標記用，揮擊時也直接打這個目標
-        bool canControl = _playerController.IsControlEnabled;
+        // 新手教學前 3 步會用 SetActionLocked 鎖住攻擊
+        bool canControl = _playerController.IsActionAllowed(PlayerAction.Attack);
         IHittable newTarget = null;
         Vector3 newHitPoint = Vector3.zero;
         if (canControl)

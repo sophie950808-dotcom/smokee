@@ -3,10 +3,10 @@
 > ChatGPT 讀不到我們的 repo，所以 C 要自己把規則交給它。
 >
 > **建議做法：在 ChatGPT 建一個「專案（Project）」**
-> 1. 專案的「檔案」上傳：`AGENTS.md`、`docs/INTERFACES.md`、`docs/DECISIONS.md`
+> 1. 專案的「檔案」上傳 4 份：`AGENTS.md`、`docs/INTERFACES.md`、`docs/DECISIONS.md`、`docs/GDD_v3.1.md`（企劃書）
 > 2. 專案的「指示」貼上下面「＝＝＝」之間的全部文字
 > 3. 之後每個任務在這個專案裡開新對話
-> 4. **A 更新這三份文件時，記得重新上傳新版**（A 會在群組通知）
+> 4. **A 更新這些文件時，記得刪掉舊檔、重新上傳新版**（A 會在群組通知）。2026-11-23 A10 已全部改為 v3.1
 
 ＝＝＝＝＝＝＝＝＝＝ 從這裡開始複製 ＝＝＝＝＝＝＝＝＝＝
 
@@ -22,15 +22,20 @@
 2. 遇到不確定的地方要問我，不可以猜測或編造不存在的 Unity API、類別或方法。
 3. 你沒辦法在 Unity 裡測試，所以不可以說「已經測試過」「一定可以」。
 
-我的程式必須使用 INTERFACES.md 定義的類別、方法與事件名稱，例如：
-- GameManager.Instance.PurificationProgress、OnGameEnded、OnPauseChanged
-- PlayerHealth.OnHpChanged
-- ExposureSystem.OnWarningChanged（警示文字）
-- RouteManager.Instance.ChooseRoute(...)（開場對話框按鈕）
-- PlayerController.SetControlEnabled(false/true)（開關對話框、視窗時）
-- PlayerEffects.ApplyItem(ItemType)（使用道具時）
-- SmokeMonster.All（小地圖顯示菸怪）
-注意：舊的倒數相關名稱（RemainingTime、OnFinalMinute）在新版會移除或改名，不要再用。用時、階段、故事事件、BOSS 血量、QTE 等新名稱以最新上傳的 INTERFACES.md 為準；INTERFACES.md 還沒寫到的，請提醒我去找 A。
+我的程式必須使用 INTERFACES.md（v3.1）定義的類別、方法與事件名稱。我主要看第 0、3、4、6、8、12、14、15、17、18 節。例如：
+- 用時：每幀讀 GameManager.Instance.ElapsedTime；淨化：PurificationProgress（0–100）、OnProgressChanged
+- 任務提示：TaskHint.OnTaskChanged／TaskHint.CurrentTask；短暫提示：TaskHint.OnToast（我只負責顯示）
+- 暫停選單：GameManager.SetPaused(false)、RestartToOpening()、ReturnToMainMenu()（不要自己 LoadScene）；結算：OnGameEnded、ScoreResult.CanRetryFromPhase3、RetryFromPhase3()、OnPhase3Retry
+- 對話框、視窗打開時：PlayerController.SetControlLock("自己的 key", true)、GameManager.SetTimerPaused("自己的 key", true)，關閉時改 false
+- DialogueUI.Show(lines, onFinished)、DialogueData（台詞資料）、DialogueLine（GameTypes 裡）；對話用滑鼠左鍵或空白鍵翻頁
+- HelpPromptUI.Show(question, onAccept, onRefuse)；「按 E」提示：PlayerInteractor.OnFocusChanged
+- RulesIntroWindow：監聽 PhaseManager.OnRulesIntroRequested，點擊後呼叫 PhaseManager.NotifyRulesIntroClosed()
+- QteBarUI：監聽 SmokerNPC.OnQteStarted／OnQteEnded，每幀讀 SmokerNPC.ActiveQte 的 QtePresses、QteRequired、QteTimeRemaining、QteDuration
+- BossHealthBar：PhaseManager.OnBossFightStarted、BossHealth.OnBossHpChanged(目前, 最大)、OnBossDefeated
+- 背包：監聽 ItemRewards.OnItemGranted 加道具；右鍵前檢查 PlayerController.IsActionAllowed(PlayerAction.UseItem)，呼叫 PlayerEffects.TryUseItem(type)，回傳 Consumed 才減 1；噴霧冷卻讀 SprayCooldownRemaining
+- 小地圖：SmokeMonster.All、TreasureChest.Instance.IsRevealed／PhaseManager.OnTreasureMapObtained、SmokerNPC.All（IsSmoking）
+- PlayerHealth.OnHpChanged、ExposureSystem.OnWarningChanged（不變）；RouteManager.Instance.ChooseRoute(...)（不變）
+注意：標記 [Obsolete] 的舊名稱（RemainingTime、RoundDuration、OnFinalMinute、ApplyItem、舊道具 NicotineInhaler／Champix／Bupropion）會出現黃色警告，不要再用，也不要自己刪 A 的程式。INTERFACES.md 還沒寫到的，請提醒我去找 A。
 不可以自己建立 GameManager、HP、進度等重複的管理器或變數。介面不夠用時，請提醒我去找 A，不要自己發明新的方法名稱。
 
 規則：

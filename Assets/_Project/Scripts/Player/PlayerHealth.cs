@@ -6,7 +6,7 @@ using UnityEngine;
 /// - 開局滿血；TakeDamage、Heal 都限制在 0–MaxHp，變動時觸發 OnHpChanged。
 /// - HP 歸零時觸發 OnDied（只觸發一次）→ GameManager 判定失敗（沒有倒地、沒有復起）。
 /// - 暴露值 100（ExposureSystem.IsMaxed）時，每秒扣血（預設 5）。
-/// - 場景裡有 GameManager 時，只在 Playing 狀態下會受傷或回血（遊戲結束、暫停、開場時都不會）；
+/// - 場景裡有 GameManager 時，只在 Playing 狀態、而且沒有「暫停計時」時會受傷或回血（遊戲結束、暫停、開場、對話、過場時都不會）；
 ///   沒有 GameManager 時照常運作（方便單獨測試）。
 /// </summary>
 public class PlayerHealth : MonoBehaviour
@@ -34,8 +34,11 @@ public class PlayerHealth : MonoBehaviour
     /// <summary>HP 改變時觸發。參數：目前 HP、最大 HP。</summary>
     public event Action<float, float> OnHpChanged;
 
-    /// <summary>HP 歸零時觸發一次 → GameManager 判定失敗。</summary>
+    /// <summary>HP 歸零時觸發一次 → GameManager 判定失敗（新手教學期間由 TutorialManager 處理）。</summary>
     public event Action OnDied;
+
+    /// <summary>受到傷害時觸發。參數：扣了多少 HP、傷害來源 → B 受擊特效、C 受傷紅框。</summary>
+    public event Action<float, DamageSource> OnDamaged;
 
     private void Awake()
     {
@@ -59,11 +62,11 @@ public class PlayerHealth : MonoBehaviour
         }
 
         // 每幀扣一點，一秒剛好扣 _maxedDamagePerSecond。暫停時 deltaTime 為 0，也不會扣
-        TakeDamage(_maxedDamagePerSecond * Time.deltaTime);
+        TakeDamage(_maxedDamagePerSecond * Time.deltaTime, DamageSource.Exposure);
     }
 
     /// <summary>
-    /// 回復 HP（B 的 EscortNPC 護送成功時呼叫 Heal(10)）。不會超過最大 HP。
+    /// 回復 HP（A 的 PlayerEffects 使用尼古丁貼片時呼叫 Heal(30)）。不會超過最大 HP。
     /// 已死亡、或 GameManager 不是 Playing 時無效。
     /// </summary>
     public void Heal(float amount)
@@ -85,18 +88,28 @@ public class PlayerHealth : MonoBehaviour
     }
 
     /// <summary>
-    /// 扣除 HP。不會低於 0；歸零時觸發 OnDied（只觸發一次）。
-    /// 已死亡、或 GameManager 不是 Playing 時無效。
+    /// 扣除 HP（來源視為暴露值）。不會低於 0；歸零時觸發 OnDied（只觸發一次）。
+    /// 已死亡、GameManager 不是 Playing、或「暫停計時」中時無效。
     /// </summary>
     public void TakeDamage(float amount)
+    {
+        TakeDamage(amount, DamageSource.Exposure);
+    }
+
+    /// <summary>
+    /// 扣除 HP，並指定傷害來源（BOSS 的菸圈、菸炮、物理攻擊用）。規則同 TakeDamage(float)。
+    /// </summary>
+    public void TakeDamage(float amount, DamageSource source)
     {
         if (_isDead || amount <= 0f || !CanChangeHp())
         {
             return;
         }
 
+        float before = _currentHp;
         _currentHp = Mathf.Max(_currentHp - amount, 0f);
         OnHpChanged?.Invoke(_currentHp, _maxHp);
+        OnDamaged?.Invoke(before - _currentHp, source);
 
         if (_currentHp <= 0f)
         {
@@ -106,12 +119,23 @@ public class PlayerHealth : MonoBehaviour
     }
 
     /// <summary>
-    /// 只有 Playing 狀態可以改變 HP；場景裡沒有 GameManager 時一律可以。
-    /// （避免在開場或暫停時 HP 歸零，GameManager 卻不判定失敗）
+    /// 【只給 GameManager、TutorialManager 使用】直接設定 HP（教學結束補滿、教學中歸零補滿、重新挑戰恢復快照）。
+    /// 會清掉「已死亡」狀態，不受遊戲狀態限制。
+    /// </summary>
+    public void ResetHp(float hp)
+    {
+        _currentHp = Mathf.Clamp(hp, 0f, _maxHp);
+        _isDead = _currentHp <= 0f;
+        OnHpChanged?.Invoke(_currentHp, _maxHp);
+    }
+
+    /// <summary>
+    /// 只有 Playing 狀態、而且沒有「暫停計時」時可以改變 HP；場景裡沒有 GameManager 時一律可以。
+    /// （避免在開場、暫停、對話或過場時 HP 改變）
     /// </summary>
     private bool CanChangeHp()
     {
         GameManager gameManager = GameManager.Instance;
-        return gameManager == null || gameManager.State == GameState.Playing;
+        return gameManager == null || (gameManager.State == GameState.Playing && !gameManager.IsTimerPaused);
     }
 }
