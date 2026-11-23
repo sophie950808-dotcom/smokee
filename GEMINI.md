@@ -5,7 +5,7 @@
 
 ## 你的使用者
 - **組員 B**，負責場景、菸怪、開場演出、NPC 故事事件、BOSS 外觀與特效、過場動畫、暴露畫面效果
-- 遊戲名稱《菸菸一熄》；規格以 `docs/DECISIONS.md` 為準（2026-11-22 新版：沒有倒數、三階段、BOSS 戰；**護送 NPC 已刪除**）
+- 遊戲名稱《菸菸一熄》；企劃書是 `docs/GDD_v3.1.md`，規格以 `docs/DECISIONS.md` 為準（2026-11-22 新版：沒有倒數、三階段、BOSS 戰；**護送 NPC 已刪除**）
 - B 是程式、Git 與 vibecoding 的初學者，請用繁體中文、一步一步說明
 - **任何改動前都要先說明會改什麼、會有什麼結果，等 B 同意才執行**（見 AGENTS.md 第一節）
 
@@ -16,17 +16,34 @@
 - **`GameScene.unity` 只有 B 可以修改**；A、C 會把做好的 Prefab 交給 B 放進場景
 - 測試場景：`TestScene_B.unity`
 
-## B 必須照著 docs/INTERFACES.md 實作的介面
-- `SmokeMonster` 實作 `IHittable`；被擊敗時呼叫 `GameManager.Instance.AddPurificationProgress(ProgressValue)`
-- 菸怪與吸菸 NPC 都掛上 A 的 `SmokeSource` 元件
-- `OpeningSequence` 監聽 `RouteManager.Instance.OnRouteChosen`，演出結束呼叫 `RouteManager.Instance.NotifyOpeningFinished()`
-  - 路線 A 的重新載入由 RouteManager 處理，OpeningSequence **不要自己 `LoadScene`**
-  - 開場期間玩家控制的分工見 `docs/INTERFACES.md` 第 5 節（場景開始由 RouteManager 鎖住；選完路線到演出結束由 B 決定；路線 B 結束由 RouteManager 恢復）
-- 畫面效果讀 `ExposureSystem.VisualExposure`
-- 死巷出口的 `AlleyExitTrigger`（A 的元件）先留在場景中不要刪；新流程沒有倒數，它之後怎麼用由 A10 決定
+## B 必須照著 docs/INTERFACES.md 實作的介面（v3.1，A10 更新）
+**B 要看 INTERFACES.md 的：第 0 節（共用型別）、第 4 節（PhaseManager 給 B 的事件與方法）、第 5 節（教學發光）、第 6 節（TaskHint）、第 8 節（PlayerController 鎖操作、TeleportTo、SetCameraOverride）、第 11 節（SmokeSource 拒絕懲罰）、第 12 節（ItemRewards）、第 14–15 節（BOSS 事件）、第 17 節（B 擁有的類別）、第 18 節（三條流程）。**
+
+- **菸怪**（B10、B12）：`SmokeMonster` 實作 `IHittable`；新增 `int PurificationUnits`（整數，1000 = 100%）、`MonsterGroup Group`、`OnDefeated`／`OnAnyDefeated` 事件；被擊敗呼叫 `GameManager.Instance.AddPurification(PurificationUnits)`（舊的 `AddPurificationProgress` 會出現黃色警告，B10 改掉）
+  - 生成時用 `PhaseManager.Instance.GetMonsterUnits(group, index)` 設定淨化值（教學 0、第一階段 40、空檔 25、事件 33／33／34）
+  - Awake 時設 `SmokeSource.AffectedByRefusal = true`；`TakeHit` 時若 `SmokeSource.IsIndestructible` 為 true → 播「打不掉」回饋、不算次數
+  - 生成時機：監聽 `PhaseManager.OnPhaseChanged(Phase1)`（5 隻）、`OnEventGapStarted`（每次 2 隻）；故事地點 3 隻由故事事件生成
+- **開場**（B7）：`OpeningSequence` 監聽 `RouteManager.Instance.OnRouteChosen`
+  - 接受路線：隨機一位路人演出，結束呼叫 `RouteManager.Instance.NotifyOpeningFinished()`（重新載入由 RouteManager 處理，**不要自己 `LoadScene`**）
+  - 拒絕路線：**車庫門開好時就呼叫 `NotifyOpeningFinished()`**（新手教學從車庫裡的第 1 步開始），並移除 OnGUI 的「新手引導」文字（改由 TutorialManager 的任務提示）
+  - `AlleyExitTrigger` 已標記 Obsolete：B7 從 GameScene 的物件上移除這個元件
+- **新手教學發光**：監聽 `TutorialManager.OnStepChanged`，讀 `MoveTarget`、`TutorialMonster`；`GameScene` 的 TutorialManager 欄位由 B 拖入
+- **故事事件**（B9、B11、B12）：B 建立 `StoryEventDirector`、`StoryEventData`（ScriptableObject）、`StoryTeleporter`（名稱、成員見 INTERFACES 第 17 節）
+  - 監聽 `PhaseManager.OnStoryEventRequested(n)` → NPC 跑來求救；回報用 `PhaseManager.ReportEventAccepted／ReportHelpRefused／ReportEventCompleted(n)`
+  - 拒絕後 NPC 跟著玩家、實作 `IInteractable`，按 E **再跳一次「要幫忙嗎？」**
+  - 給道具用 `ItemRewards.Grant(ItemType)`（事件一貼片、事件二口嚼錠；藏寶圖由 PhaseManager 處理）
+  - 任務提示用 `TaskHint.SetTask("StoryEvent", 文字)`；對話用 C 的 `DialogueUI.Show(...)`；「要幫忙嗎？」用 C 的 `HelpPromptUI.Show(...)`
+  - 傳送用 `PlayerController.TeleportTo(...)`，期間 `GameManager.SetTimerPaused("Teleport", true)`、`PlayerController.SetControlLock("Teleport", true)`
+- **BOSS 外觀與演出**（B13、B15–B17）：BOSS 的移動、縮放、傷害判定是 A 的；B 只做模型（子物件）、動畫、特效
+  - 監聽 `PhaseManager.OnBossIntroRequested` 播登場 → `PhaseManager.NotifyBossIntroFinished()`（重新挑戰會再播一次）
+  - 監聽 `BossController.OnStateChanged`、`OnSizeLevelChanged`、`BossHealth.OnBossDamaged`、`BossAttack` 的事件、`PlayerEffects.OnSprayFired`
+  - 監聽 `PhaseManager.OnEndingRequested` 播結局 → `PhaseManager.NotifyEndingFinished()`
+  - 過場鏡頭用 `PlayerController.SetCameraOverride(點)`，不用再把 PlayerController 停用
+- 畫面效果讀 `ExposureSystem.VisualExposure`（不變）
 - 會被玩家按 E 互動的 NPC 實作 `IInteractable`；**不要自己讀 E 鍵或 Q 鍵**
-- 故事事件、階段切換、BOSS、吸菸 NPC 的新介面名稱，等 A 完成 A10（更新 `docs/INTERFACES.md`）後照著用；**INTERFACES 還沒寫的名稱不要自己發明**
-- `EscortNPC`、`SafeZone`、`GuideLine` 已不使用，由 B 在 Unity 的 Project 視窗刪除（任務 B7）
+- **INTERFACES 還沒寫的名稱不要自己發明**，不夠用請 B 去找 A
+- B7 要在 Unity 的 Project 視窗刪除：`EscortNPC`、`SafeZone`、`GuideLine`、`Assets/_Project/UI/InGameMenu.cs`（暫停選單改由 C 做）
+- 標記 `[Obsolete]` 的東西（黃色警告）**不要自己刪**，等各自的刪除任務
 
 ## B 的任務清單（分工表）
 完整分工見 Google 試算表「煙煙一息 分工大表」。第一次檢核的 B1–B6、I2、F2 已完成。

@@ -68,7 +68,7 @@ public class PlayerController : MonoBehaviour
     public bool IsFirstPerson => _isFirstPerson;
 
     /// <summary>
-    /// 玩家現在能不能操作：沒被 SetControlEnabled(false) 關掉，而且不在暫停中。
+    /// 玩家現在能不能操作：沒有任何系統用 SetControlLock／SetControlEnabled(false) 鎖住，而且不在暫停中。
     /// PlayerAttack、PlayerInteractor 用這個判斷能不能攻擊／互動。
     /// </summary>
     public bool IsControlEnabled => CanControl;
@@ -76,10 +76,15 @@ public class PlayerController : MonoBehaviour
     /// <summary>切換第一／第三人稱時觸發。參數：是否第一人稱。</summary>
     public event Action<bool> OnViewModeChanged;
 
+    // SetControlEnabled（舊方法）使用的 key
+    private const string DefaultControlKey = "Default";
+
     private CharacterController _controller;
     private bool _isFirstPerson;
-    private bool _controlEnabled = true;
     private bool _isPaused;
+    private readonly HashSet<string> _controlLocks = new HashSet<string>();
+    private readonly Dictionary<PlayerAction, HashSet<string>> _actionLocks = new Dictionary<PlayerAction, HashSet<string>>();
+    private Transform _cameraOverride;
     private GameManager _gameManager;
     private float _yaw;
     private float _pitch;
@@ -136,15 +141,21 @@ public class PlayerController : MonoBehaviour
     {
         if (CanControl)
         {
-            HandleLook();
-            HandleViewToggle();
+            if (IsActionAllowed(PlayerAction.Look))
+            {
+                HandleLook();
+            }
+            if (IsActionAllowed(PlayerAction.ViewToggle))
+            {
+                HandleViewToggle();
+            }
         }
 
         HandleMovement();
     }
 
-    /// <summary>玩家現在能不能操作：沒被 SetControlEnabled(false) 關掉，而且不在暫停中。</summary>
-    private bool CanControl => _controlEnabled && !_isPaused;
+    /// <summary>玩家現在能不能操作：沒有任何控制鎖，而且不在暫停中。</summary>
+    private bool CanControl => _controlLocks.Count == 0 && !_isPaused;
 
     private void LateUpdate()
     {
@@ -157,8 +168,102 @@ public class PlayerController : MonoBehaviour
     /// </summary>
     public void SetControlEnabled(bool enabled)
     {
-        _controlEnabled = enabled;
+        // 舊方法保留給 B、C 現有程式：等於用 "Default" 這個 key 上鎖／解鎖
+        SetControlLock(DefaultControlKey, !enabled);
+    }
+
+    /// <summary>
+    /// 用自己的 key 鎖住或放開全部操作，例如 ("Dialogue", true)。
+    /// 鎖住時停止移動與視角並解鎖游標；所有 key 都放開才恢復，不會互相覆蓋。
+    /// </summary>
+    public void SetControlLock(string key, bool locked)
+    {
+        if (string.IsNullOrEmpty(key))
+        {
+            return;
+        }
+
+        if (locked)
+        {
+            _controlLocks.Add(key);
+        }
+        else
+        {
+            _controlLocks.Remove(key);
+        }
         ApplyCursorState();
+    }
+
+    /// <summary>
+    /// 只鎖住或放開一種操作（新手教學、QTE 用），例如 (PlayerAction.Move, "Tutorial", true)。
+    /// 同一種操作可以被多個 key 鎖住，全部放開才可以用。
+    /// </summary>
+    public void SetActionLocked(PlayerAction action, string key, bool locked)
+    {
+        if (string.IsNullOrEmpty(key))
+        {
+            return;
+        }
+
+        if (!_actionLocks.TryGetValue(action, out HashSet<string> keys))
+        {
+            keys = new HashSet<string>();
+            _actionLocks[action] = keys;
+        }
+
+        if (locked)
+        {
+            keys.Add(key);
+        }
+        else
+        {
+            keys.Remove(key);
+        }
+    }
+
+    /// <summary>
+    /// 這種操作現在能不能用：整體可以操作（IsControlEnabled），而且這種操作沒被個別鎖住。
+    /// C 的背包切換／使用道具前先檢查 PlayerAction.UseItem。
+    /// </summary>
+    public bool IsActionAllowed(PlayerAction action)
+    {
+        if (!CanControl)
+        {
+            return false;
+        }
+
+        return !_actionLocks.TryGetValue(action, out HashSet<string> keys) || keys.Count == 0;
+    }
+
+    /// <summary>
+    /// 把玩家瞬間移動到指定位置與方向（B 的 StoryTeleporter 用）。
+    /// CharacterController 啟用時不能直接改 position，這裡會先停用再啟用。
+    /// </summary>
+    public void TeleportTo(Vector3 position, Quaternion rotation)
+    {
+        bool wasEnabled = _controller.enabled;
+        _controller.enabled = false;
+
+        _yaw = rotation.eulerAngles.y;
+        transform.SetPositionAndRotation(position, Quaternion.Euler(0f, _yaw, 0f));
+        _verticalVelocity = 0f;
+
+        _controller.enabled = wasEnabled;
+    }
+
+    /// <summary>
+    /// 過場動畫用：Main Camera 改成每幀跟著指定的點（位置與旋轉），不再跟著玩家。
+    /// 傳 null 等於 ClearCameraOverride()。
+    /// </summary>
+    public void SetCameraOverride(Transform cameraPoint)
+    {
+        _cameraOverride = cameraPoint;
+    }
+
+    /// <summary>取消過場鏡頭，Main Camera 回到跟著玩家。</summary>
+    public void ClearCameraOverride()
+    {
+        _cameraOverride = null;
     }
 
     /// <summary>
@@ -222,12 +327,15 @@ public class PlayerController : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
         if (CanControl && keyboard != null)
         {
-            if (keyboard.wKey.isPressed) input.y += 1f;
-            if (keyboard.sKey.isPressed) input.y -= 1f;
-            if (keyboard.dKey.isPressed) input.x += 1f;
-            if (keyboard.aKey.isPressed) input.x -= 1f;
-            isRunning = keyboard.leftShiftKey.isPressed;
-            jumpPressed = keyboard.spaceKey.wasPressedThisFrame;
+            if (IsActionAllowed(PlayerAction.Move))
+            {
+                if (keyboard.wKey.isPressed) input.y += 1f;
+                if (keyboard.sKey.isPressed) input.y -= 1f;
+                if (keyboard.dKey.isPressed) input.x += 1f;
+                if (keyboard.aKey.isPressed) input.x -= 1f;
+            }
+            isRunning = IsActionAllowed(PlayerAction.Run) && keyboard.leftShiftKey.isPressed;
+            jumpPressed = IsActionAllowed(PlayerAction.Jump) && keyboard.spaceKey.wasPressedThisFrame;
         }
 
         // 斜走不會比直走快
@@ -265,7 +373,18 @@ public class PlayerController : MonoBehaviour
 
     private void UpdateCameraPosition()
     {
-        if (_camera == null || _cameraPivot == null)
+        if (_camera == null)
+        {
+            return;
+        }
+
+        if (_cameraOverride != null)
+        {
+            _camera.transform.SetPositionAndRotation(_cameraOverride.position, _cameraOverride.rotation);
+            return;
+        }
+
+        if (_cameraPivot == null)
         {
             return;
         }

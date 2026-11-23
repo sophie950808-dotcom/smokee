@@ -30,6 +30,15 @@ public class PlayerInteractor : MonoBehaviour
     /// <summary>互動目標改變時觸發。參數：新的目標，null 代表附近沒有可互動物件。C 的 HUD 用來顯示／隱藏提示。</summary>
     public event Action<IInteractable> OnFocusChanged;
 
+    /// <summary>玩家按 E 成功互動時觸發。參數：互動的對象（B 可接音效）。</summary>
+    public event Action<IInteractable> OnInteracted;
+
+    /// <summary>
+    /// 是否正在 QTE 連打（捏熄吸菸 NPC 的菸）。這段期間 E 鍵全部交給 SmokerNPC.ActiveQte，不會找其他目標。
+    /// 【A10 空殼】A16 完成。
+    /// </summary>
+    public bool IsInQte => false;
+
     // 物件的碰撞體可能比 InteractPoint 遠一點，搜尋範圍多抓一些，最後再用 InteractPoint 的距離篩選
     private const float SearchPadding = 1f;
 
@@ -46,7 +55,8 @@ public class PlayerInteractor : MonoBehaviour
     private void Update()
     {
         // 控制被停用（例如問答 UI 開著）或暫停時，沒有目標，提示也會消失
-        IInteractable newTarget = _playerController.IsControlEnabled ? FindBestTarget() : null;
+        // 新手教學期間會用 SetActionLocked 鎖住互動
+        IInteractable newTarget = _playerController.IsActionAllowed(PlayerAction.Interact) ? FindBestTarget() : null;
         SetTarget(newTarget);
 
         if (_currentTarget == null)
@@ -57,7 +67,9 @@ public class PlayerInteractor : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
         if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
         {
-            _currentTarget.Interact();
+            IInteractable interacted = _currentTarget;
+            interacted.Interact();
+            OnInteracted?.Invoke(interacted);
 
             // 互動後物件可能變成不能互動或被刪除，馬上重新找，提示不會多停一幀
             SetTarget(FindBestTarget());

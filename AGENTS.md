@@ -11,6 +11,7 @@
 - 《菸菸一熄》二手菸危害宣導遊戲，Unity 3D，Windows PC，鍵盤＋滑鼠
 - 新版流程（2026-11-22 起）：沒有倒數計時；新手教學 → 第一階段打菸怪 → 第二階段三個 NPC 故事事件 → 第三階段 BOSS 戰；HP 歸零才失敗
 - Unity 版本 **6000.0.43f1**（三人相同，不得升級或降級）
+- 企劃書：`docs/GDD_v3.1.md`（v3.1，由 docx 轉成 Markdown；舊版規則全部作廢）
 - 規格以 `docs/DECISIONS.md` 為準（優先於企劃書）
 - 跨模組的類別、方法、事件名稱以 `docs/INTERFACES.md` 為準
 
@@ -79,6 +80,8 @@ AI 沒辦法在 Unity 裡按 Play。完成後只能說「程式寫好了，請�
 7. 只有 A 的 PlayerInteractor 讀 E 鍵、只有 GameManager 讀 Esc 鍵。其他腳本不要自己讀這兩個鍵。E 鍵統一用在 NPC 對話與接任務、故事互動、寶箱、捏熄菸蒂（含 QTE 連打）；要被 E 互動的物件請實作 `IInteractable`。**不要使用 Q 鍵。**
 8. Unity 6 API：用 `Rigidbody.linearVelocity`（不是 `velocity`）、`FindFirstObjectByType`（不是 `FindObjectOfType`）。
 9. 暫停時 `Time.timeScale = 0`，UI 動畫請用 `Time.unscaledDeltaTime`。
+10. **不要自己 `SceneManager.LoadScene`。** 重新開始、返回主選單、重新挑戰一律呼叫 `GameManager` 的方法（見 `docs/INTERFACES.md` 第 3 節）。
+11. 對話、視窗、過場要停止計時或鎖住玩家時，用**自己的 key** 呼叫 `GameManager.SetTimerPaused(key, …)`、`PlayerController.SetControlLock(key, …)`，不要和別人共用 key。
 
 ## 六、Git 規則
 1. **不要自己 commit、push、merge、切換分支**，除非使用者明確要求。使用者用 GitHub Desktop 自己檢查與提交。

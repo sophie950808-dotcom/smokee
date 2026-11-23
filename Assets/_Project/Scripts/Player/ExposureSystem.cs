@@ -43,7 +43,7 @@ public class ExposureSystem : MonoBehaviour
     /// <summary>實際暴露值 0–100。</summary>
     public float Exposure => _exposure;
 
-    /// <summary>畫面效果用的暴露值（B 讀這個）；IsVisualSuppressed 為 true（戒菸噴霧）時為 0，其餘等於 Exposure。</summary>
+    /// <summary>畫面效果用的暴露值（B 讀這個）。v3.1 起一般都等於 Exposure。</summary>
     public float VisualExposure => _isVisualSuppressed ? 0f : _exposure;
 
     /// <summary>暴露值 ≥ 警示門檻（預設 80）時為 true。</summary>
@@ -56,8 +56,9 @@ public class ExposureSystem : MonoBehaviour
     public float SmokeSeconds => _smokeSeconds;
 
     /// <summary>
-    /// 上升速度倍率，預設 1。尼古丁貼片生效時設為 0.75，結束時設回 1。不會小於 0。
+    /// 【即將移除】上升速度倍率，預設 1。v3.1 的道具不再使用。不會小於 0。
     /// </summary>
+    [Obsolete("v3.1 道具不再改變暴露值上升速度。A13 刪除。")]
     public float RiseMultiplier
     {
         get => _riseMultiplier;
@@ -65,8 +66,9 @@ public class ExposureSystem : MonoBehaviour
     }
 
     /// <summary>
-    /// 是否抑制畫面煙霧效果。true 時 VisualExposure 回傳 0（暴露值本身照算）。給尼古丁戒菸噴霧用。
+    /// 【即將移除】是否抑制畫面煙霧效果。v3.1 的戒菸噴霧改成攻擊 BOSS，不再使用。
     /// </summary>
+    [Obsolete("v3.1 戒菸噴霧改成攻擊 BOSS，不再抑制畫面效果。A13 刪除。")]
     public bool IsVisualSuppressed
     {
         get => _isVisualSuppressed;
@@ -130,13 +132,26 @@ public class ExposureSystem : MonoBehaviour
         }
     }
 
-    /// <summary>只在 Opening 或 Playing 時計算；沒有 GameManager 時照樣計算。</summary>
+    /// <summary>
+    /// 【只給 GameManager、TutorialManager 使用】把暴露值歸零（教學結束、教學中 HP 歸零、重新挑戰）。
+    /// </summary>
+    public void ResetExposure()
+    {
+        SetExposure(0f);
+    }
+
+    /// <summary>只在 Opening 或 Playing、而且沒有「暫停計時」時計算；沒有 GameManager 時照樣計算。</summary>
     private bool ShouldCalculate()
     {
         GameManager gameManager = GameManager.Instance;
         if (gameManager == null)
         {
             return true;
+        }
+
+        if (gameManager.IsTimerPaused)
+        {
+            return false;
         }
 
         return gameManager.State == GameState.Opening || gameManager.State == GameState.Playing;

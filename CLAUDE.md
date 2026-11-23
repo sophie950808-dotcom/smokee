@@ -13,13 +13,13 @@
 見 `AGENTS.md` 第四節。A 是唯一可以改共用文件、`ProjectSettings/`、`Packages/` 的人，但**改之前一樣要先問 A、說明結果、等同意**。
 
 ## A 的任務清單（分工表）
-完整分工與每天的任務見 Google 試算表「煙煙一息 分工大表」；規格見 `docs/DECISIONS.md` 與企畫書 3.1。
-第一次檢核的 A1–A9、I1 已完成。
+完整分工與每天的任務見 Google 試算表「煙煙一息 分工大表」；規格見 `docs/DECISIONS.md` 與企畫書 `docs/GDD_v3.1.md`。
+第一次檢核的 A1–A9、I1 已完成。A10（2026-11-23）：INTERFACES／DECISIONS 改為 v3.1，A 的新類別空殼已建立（`PhaseManager`、`TutorialManager`、`TaskHint`、`ItemRewards`、`TreasureChest`、`Scripts/Boss/` 4 支），舊介面標記 `[Obsolete]`；各空殼的完成任務標在程式註解「【Axx 完成】」。
 
 ### 第二次檢核（12/03：整局可從頭玩到尾）
 | 日期 | 編號 | 內容 | 前置 |
 |---|---|---|---|
-| 11/23 | A10 | 更新 `docs/INTERFACES.md`：階段、故事事件、BOSS、吸菸 NPC、對話、3 種道具的介面空殼 | — |
+| 11/23 | A10（待 Unity 確認 Console） | 更新 `docs/INTERFACES.md`：階段、故事事件、BOSS、吸菸 NPC、對話、3 種道具的介面空殼 | — |
 | 11/24 | A11 | GameManager 取消倒數改記錄用時；PhaseManager：教學與三階段切換、淨化里程碑 | A10 |
 | 11/25 | A13 | PlayerInteractor 統一 E 鍵；PlayerEffects 改 3 種道具 | A10 |
 | 11/26 | A14 | BOSS 地面版：血量、近戰與噴霧傷害、小菸圈、淨化換算 60 → 100% | A11、A13 |
