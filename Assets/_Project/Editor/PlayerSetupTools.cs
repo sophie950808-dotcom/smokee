@@ -59,7 +59,7 @@ public static class PlayerSetupTools
 
         SerializedObject serializedManager = new SerializedObject(gameManager);
         serializedManager.FindProperty("_devMode").boolValue = true;
-        serializedManager.FindProperty("_autoStartRound").boolValue = true;
+        serializedManager.FindProperty("_devAutoStart").enumValueIndex = (int)GameManager.DevAutoStartMode.Tutorial;
         serializedManager.ApplyModifiedPropertiesWithoutUndo();
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -67,13 +67,14 @@ public static class PlayerSetupTools
         Selection.activeGameObject = managerObject;
 
         EditorUtility.DisplayDialog("完成",
-            "GameManager 已放進 TestScene_A 並存檔（devMode、autoStartRound 已勾選）。\n按 Play 後左上角會出現開發者面板。",
+            "GameManager 已放進 TestScene_A 並存檔（devMode 已勾選、devAutoStart = Tutorial）。\n" +
+            "按 Play 後左上角會出現開發者面板。\n記得再執行「A - A11 設定 TestScene_A」補上 PhaseManager。",
             "好");
     }
 
     /// <summary>
-    /// 選單：A9。在 TestScene_A 放 RouteManager，並在窄走廊盡頭放一個綠色的死巷出口方塊（Trigger＋AlleyExitTrigger）。
-    /// 不會動到 GameManager（autoStartRound 保持勾選，用來確認有 RouteManager 時會被忽略）。
+    /// 選單：A9。在 TestScene_A 放 RouteManager（會移除舊的 A9 死巷出口方塊；A11 起不再使用 AlleyExitTrigger）。
+    /// 不會動到 GameManager（有 RouteManager 時 devAutoStart 會被忽略，開場用 F6、F7）。
     /// </summary>
     [MenuItem("Tools/Smokee/A - 放置 A9 RouteManager 與死巷出口")]
     public static void BuildA9RouteTestMenu()
@@ -103,19 +104,103 @@ public static class PlayerSetupTools
         GameObject routeObject = new GameObject("RouteManager");
         routeObject.AddComponent<RouteManager>();
 
-        // 窄走廊在 x = 5～7.5、z = -1～11，出口放在走廊北端
-        Material exitMaterial = GetOrCreateMaterial("TestA_AlleyExit", new Color(0.3f, 1f, 0.4f));
-        GameObject exit = CreateBlock(A9ExitName, null, new Vector3(6.25f, 1.5f, 11.5f), new Vector3(2f, 3f, 0.3f), exitMaterial);
-        exit.GetComponent<Collider>().isTrigger = true;
-        exit.AddComponent<AlleyExitTrigger>();
+        // （A11）v3.1 不再用「走出死巷」開始，所以不再放死巷出口方塊
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         Selection.activeGameObject = routeObject;
 
         EditorUtility.DisplayDialog("完成",
-            "RouteManager 與死巷出口（綠色方塊，在窄走廊北端）已放進 TestScene_A 並存檔。\n" +
+            "RouteManager 已放進 TestScene_A 並存檔（舊的死巷出口方塊已移除）。\n" +
             "按 Play 後用 F5／F6 選路線、F7 結束開場。",
+            "好");
+    }
+
+    /// <summary>
+    /// 選單：A11。在 TestScene_A 的 GameManager 物件上補上 PhaseManager、TutorialManager（已經有就不重複加），
+    /// 並確認 devMode 勾選、DevOverlay、DevHotkeys 都在；同時移除舊的 A9 死巷出口方塊。
+    /// 需要先執行 A5（GameManager）與 A9（RouteManager）。
+    /// </summary>
+    [MenuItem("Tools/Smokee/A - A11 設定 TestScene_A（PhaseManager）")]
+    public static void BuildA11PhaseTestMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+        GameManager gameManager = null;
+        bool hasRouteManager = false;
+        bool removedAlleyExit = false;
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.name == A9ExitName)
+            {
+                Object.DestroyImmediate(rootObject);
+                removedAlleyExit = true;
+                continue;
+            }
+            if (gameManager == null)
+            {
+                gameManager = rootObject.GetComponentInChildren<GameManager>(true);
+            }
+            if (rootObject.GetComponentInChildren<RouteManager>(true) != null)
+            {
+                hasRouteManager = true;
+            }
+        }
+
+        if (gameManager == null)
+        {
+            EditorUtility.DisplayDialog("找不到 GameManager",
+                "TestScene_A 裡沒有 GameManager，請先執行「A - 放置 A5 GameManager（開發者模式）」。", "好");
+            return;
+        }
+
+        GameObject managerObject = gameManager.gameObject;
+        string added = "";
+        if (managerObject.GetComponent<PhaseManager>() == null)
+        {
+            managerObject.AddComponent<PhaseManager>();
+            added += "PhaseManager ";
+        }
+        if (managerObject.GetComponent<TutorialManager>() == null)
+        {
+            managerObject.AddComponent<TutorialManager>();
+            added += "TutorialManager ";
+        }
+        if (managerObject.GetComponent<DevOverlay>() == null)
+        {
+            managerObject.AddComponent<DevOverlay>();
+            added += "DevOverlay ";
+        }
+        if (managerObject.GetComponent<DevHotkeys>() == null)
+        {
+            managerObject.AddComponent<DevHotkeys>();
+            added += "DevHotkeys ";
+        }
+
+        SerializedObject serializedManager = new SerializedObject(gameManager);
+        serializedManager.FindProperty("_devMode").boolValue = true;
+        serializedManager.ApplyModifiedPropertiesWithoutUndo();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Selection.activeGameObject = managerObject;
+
+        EditorUtility.DisplayDialog("完成",
+            "TestScene_A 已存檔。" + (added.Length > 0 ? "\n新增：" + added : "\n元件都已經在了，沒有新增。") +
+            (removedAlleyExit ? "\n已移除舊的死巷出口方塊。" : "") +
+            (hasRouteManager ? "" : "\n\n注意：場景裡沒有 RouteManager，請執行 A9，或在 GameManager 設定 devAutoStart。") +
+            "\n\n按 Play 後：F6 拒絕香菸 → F7 開場結束 → F1 完成教學 → 依左上角面板的按鍵說明往下測。",
             "好");
     }
 

@@ -112,9 +112,6 @@ public struct ScoreResult
     public float RemainingHp;
     /// <summary>用時（秒）。v3.1 起代表「用時」，名稱不變。</summary>
     public float ClearTimeSeconds;
-    /// <summary>【即將移除】倒數已取消，固定為 0。</summary>
-    [Obsolete("v3.1 取消倒數，固定為 0。A11 刪除。")]
-    public float RemainingSeconds;
     /// <summary>待在煙霧範圍內的總秒數（「吸入二手菸量」）。</summary>
     public float SmokeSeconds;
     /// <summary>血量分 0–100。</summary>

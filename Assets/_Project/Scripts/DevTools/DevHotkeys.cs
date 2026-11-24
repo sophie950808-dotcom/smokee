@@ -3,37 +3,35 @@ using UnityEngine.InputSystem;
 
 /// <summary>
 /// 開發者快捷鍵（只在測試用）。只有 GameManager 勾選 devMode 時才有效。
-/// 遊戲進行中（Playing）：F1 淨化進度 +10、F2 剩餘時間設為 65 秒、F3 立即勝利、F4 立即失敗、
-/// F9 扣 20 HP、F10 回 10 HP。
-/// 開場中（Opening，需要場景裡有 RouteManager）：F5 接受香菸、F6 拒絕香菸、F7 開場演出結束。
-/// （F5～F7 是在 C 的對話框、B 的開場演出完成前，先用按鍵模擬）
+/// 用來模擬還沒完成的系統（教學、B 的故事事件、寶箱、BOSS、結局），讓 TestScene_A 可以從頭到尾跑一次。
+/// 不使用遊戲操作的按鍵（WASD、空白、Shift、E、V、Esc、Tab、滑鼠）。
 /// 之後的任務會在這裡繼續加鍵，記得同步更新 HelpText。
 /// </summary>
 public class DevHotkeys : MonoBehaviour
 {
     /// <summary>按鍵說明文字，DevOverlay 會顯示。</summary>
     public const string HelpText =
-        "F1 淨化進度 +10\n" +
-        "F2 剩餘時間設為 65 秒\n" +
-        "F3 立即勝利\n" +
-        "F4 立即失敗\n" +
-        "F5 選擇接受香菸（開場）\n" +
-        "F6 選擇拒絕香菸（開場）\n" +
-        "F7 開場演出結束（開場）\n" +
-        "F9 扣 20 HP\n" +
-        "F10 回 10 HP";
-
-    [Tooltip("F1 每次增加的淨化進度")]
-    [SerializeField] private float _progressStep = 10f;
-
-    [Tooltip("F2 把剩餘時間設成幾秒（比 60 秒多一點，可以測最後一分鐘事件）")]
-    [SerializeField] private float _setTimeSeconds = 65f;
+        "── 開場 ──\n" +
+        "F5 接受香菸　F6 拒絕香菸　F7 開場演出結束\n" +
+        "── 遊戲中 ──\n" +
+        "F1 完成新手教學\n" +
+        "F2 擊敗一隻菸怪（+40，第三階段應被擋）\n" +
+        "F3 接受目前事件（含拒絕後重新接受）\n" +
+        "F4 拒絕目前事件（事件二、三）\n" +
+        "F8 完成目前事件\n" +
+        "F11 空檔剩餘設為 3 秒\n" +
+        "F9 扣 20 HP　F10 回 10 HP\n" +
+        "1 淨化設為 60%　2 進入第三階段\n" +
+        "3 模擬打倒 BOSS　4 模擬結局播完";
 
     [Tooltip("F9 每次扣多少 HP")]
     [SerializeField] private float _devDamage = 20f;
 
     [Tooltip("F10 每次回多少 HP")]
     [SerializeField] private float _devHeal = 10f;
+
+    [Tooltip("F11 把 40 秒空檔的剩餘時間設成幾秒")]
+    [SerializeField] private float _gapSkipSeconds = 3f;
 
     private PlayerHealth _playerHealth;
 
@@ -80,37 +78,81 @@ public class DevHotkeys : MonoBehaviour
 
     private void HandlePlayingKeys(GameManager gameManager, Keyboard keyboard)
     {
-        if (keyboard.f1Key.wasPressedThisFrame)
-        {
-            gameManager.AddPurificationProgress(_progressStep);
-        }
-        else if (keyboard.f2Key.wasPressedThisFrame)
-        {
-            gameManager.DevSetRemainingTime(_setTimeSeconds);
-        }
-        else if (keyboard.f3Key.wasPressedThisFrame)
-        {
-            gameManager.DevForceEnd(true);
-        }
-        else if (keyboard.f4Key.wasPressedThisFrame)
-        {
-            gameManager.DevForceEnd(false);
-        }
-        else if (keyboard.f9Key.wasPressedThisFrame)
+        PhaseManager phaseManager = PhaseManager.Instance;
+
+        if (keyboard.f9Key.wasPressedThisFrame)
         {
             PlayerHealth playerHealth = GetPlayerHealth();
             if (playerHealth != null)
             {
-                playerHealth.TakeDamage(_devDamage);
+                playerHealth.TakeDamage(_devDamage, DamageSource.Dev);
             }
+            return;
         }
-        else if (keyboard.f10Key.wasPressedThisFrame)
+        if (keyboard.f10Key.wasPressedThisFrame)
         {
             PlayerHealth playerHealth = GetPlayerHealth();
             if (playerHealth != null)
             {
                 playerHealth.Heal(_devHeal);
             }
+            return;
+        }
+        if (keyboard.digit1Key.wasPressedThisFrame)
+        {
+            gameManager.DevSetPurification(GameManager.Phase3PurificationUnits);
+            return;
+        }
+        if (keyboard.digit3Key.wasPressedThisFrame)
+        {
+            gameManager.NotifyBossDefeated();
+            return;
+        }
+
+        if (phaseManager == null)
+        {
+            if (keyboard.f1Key.wasPressedThisFrame || keyboard.f2Key.wasPressedThisFrame
+                || keyboard.f3Key.wasPressedThisFrame || keyboard.f4Key.wasPressedThisFrame
+                || keyboard.f8Key.wasPressedThisFrame || keyboard.f11Key.wasPressedThisFrame
+                || keyboard.digit2Key.wasPressedThisFrame || keyboard.digit4Key.wasPressedThisFrame)
+            {
+                Debug.LogWarning("[DevHotkeys] 場景裡沒有 PhaseManager，這個按鍵無效。請執行選單 Tools/Smokee/A - A11 設定 TestScene_A。", this);
+            }
+            return;
+        }
+
+        if (keyboard.f1Key.wasPressedThisFrame)
+        {
+            phaseManager.NotifyTutorialFinished();
+        }
+        else if (keyboard.f2Key.wasPressedThisFrame)
+        {
+            // 模擬 B 的菸怪被擊敗：直接加第一階段菸怪的淨化值（第三階段時 GameManager 會擋下）
+            gameManager.AddPurification(phaseManager.GetMonsterUnits(MonsterGroup.Phase1, 0));
+        }
+        else if (keyboard.f3Key.wasPressedThisFrame)
+        {
+            phaseManager.ReportEventAccepted(phaseManager.CurrentEventIndex);
+        }
+        else if (keyboard.f4Key.wasPressedThisFrame)
+        {
+            phaseManager.ReportHelpRefused(phaseManager.CurrentEventIndex);
+        }
+        else if (keyboard.f8Key.wasPressedThisFrame)
+        {
+            phaseManager.ReportEventCompleted(phaseManager.CurrentEventIndex);
+        }
+        else if (keyboard.f11Key.wasPressedThisFrame)
+        {
+            phaseManager.DevSetEventGapRemaining(_gapSkipSeconds);
+        }
+        else if (keyboard.digit2Key.wasPressedThisFrame)
+        {
+            phaseManager.DevJumpToPhase3();
+        }
+        else if (keyboard.digit4Key.wasPressedThisFrame)
+        {
+            phaseManager.NotifyEndingFinished();
         }
     }
 
