@@ -22,7 +22,10 @@ public class DevHotkeys : MonoBehaviour
         "F11 空檔剩餘設為 3 秒\n" +
         "F9 扣 20 HP　F10 回 10 HP\n" +
         "1 淨化設為 60%　2 進入第三階段\n" +
-        "3 模擬打倒 BOSS　4 模擬結局播完";
+        "3 模擬打倒 BOSS　4 模擬結局播完\n" +
+        "── 道具（A13）──\n" +
+        "5 給予三種道具（ItemRewards.Grant）\n" +
+        "6 用貼片　7 用口嚼錠　8 用噴霧（瞄準鏡頭中央）";
 
     [Tooltip("F9 每次扣多少 HP")]
     [SerializeField] private float _devDamage = 20f;
@@ -34,6 +37,7 @@ public class DevHotkeys : MonoBehaviour
     [SerializeField] private float _gapSkipSeconds = 3f;
 
     private PlayerHealth _playerHealth;
+    private PlayerEffects _playerEffects;
 
     private void Update()
     {
@@ -108,6 +112,10 @@ public class DevHotkeys : MonoBehaviour
             gameManager.NotifyBossDefeated();
             return;
         }
+        if (HandleItemKeys(keyboard))
+        {
+            return;
+        }
 
         if (phaseManager == null)
         {
@@ -154,6 +162,64 @@ public class DevHotkeys : MonoBehaviour
         {
             phaseManager.NotifyEndingFinished();
         }
+    }
+
+    /// <summary>
+    /// A13 道具按鍵：5 給予三種道具；6／7／8 直接使用（模擬 C 的背包按右鍵，背包完成前用來測試）。
+    /// 有按下其中一個鍵時回傳 true。
+    /// </summary>
+    private bool HandleItemKeys(Keyboard keyboard)
+    {
+        if (keyboard.digit5Key.wasPressedThisFrame)
+        {
+            ItemRewards.Grant(ItemType.NicotinePatch);
+            ItemRewards.Grant(ItemType.NicotineGum);
+            ItemRewards.Grant(ItemType.NicotineSpray);
+            Debug.Log("[DevHotkeys] 給予三種道具（貼片、口嚼錠、噴霧）。C 的背包還沒完成時，上面會出現「沒有背包在監聽」的黃色警告，這是正常的。", this);
+            return true;
+        }
+
+        ItemType? type = null;
+        if (keyboard.digit6Key.wasPressedThisFrame)
+        {
+            type = ItemType.NicotinePatch;
+        }
+        else if (keyboard.digit7Key.wasPressedThisFrame)
+        {
+            type = ItemType.NicotineGum;
+        }
+        else if (keyboard.digit8Key.wasPressedThisFrame)
+        {
+            type = ItemType.NicotineSpray;
+        }
+
+        if (type == null)
+        {
+            return false;
+        }
+
+        PlayerEffects playerEffects = GetPlayerEffects();
+        if (playerEffects != null)
+        {
+            ItemUseResult result = playerEffects.TryUseItem(type.Value);
+            Debug.Log("[DevHotkeys] 使用 " + type.Value + " → " + result
+                      + (result == ItemUseResult.Consumed ? "（背包應該減 1）" : "（背包不扣）"), this);
+        }
+        return true;
+    }
+
+    /// <summary>第一次用到時才在場景裡找 PlayerEffects；找不到時印警告。</summary>
+    private PlayerEffects GetPlayerEffects()
+    {
+        if (_playerEffects == null)
+        {
+            _playerEffects = FindFirstObjectByType<PlayerEffects>();
+            if (_playerEffects == null)
+            {
+                Debug.LogWarning("[DevHotkeys] 場景裡找不到 PlayerEffects，6／7／8 無效。請執行選單 Tools/Smokee/A - A13 放置道具與互動測試物件。", this);
+            }
+        }
+        return _playerEffects;
     }
 
     /// <summary>第一次用到時才在場景裡找 PlayerHealth；找不到時印警告。</summary>

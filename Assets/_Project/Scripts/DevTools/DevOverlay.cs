@@ -5,8 +5,9 @@ using UnityEngine;
 /// 開發者面板（只在測試用）：用 OnGUI 在畫面左上角顯示遊戲狀態與快捷鍵說明。
 /// 只有 GameManager 勾選 devMode 時才會顯示。
 /// 顯示：狀態、路線、階段、故事事件、空檔倒數、淨化（整數與百分比）、用時、計時是否暫停（與申請的 key）、
-/// 目前任務提示、淨化里程碑、第三階段快照、HP、暴露值；遊戲結束時另外顯示完整的 ScoreResult。
-/// 找不到 PlayerHealth／ExposureSystem／PhaseManager 時該欄顯示 N/A。
+/// 目前任務提示、淨化里程碑、第三階段快照、HP、暴露值、互動目標與 QTE、三種道具狀態與噴霧冷卻；
+/// 遊戲結束時另外顯示完整的 ScoreResult。
+/// 找不到 PlayerHealth／ExposureSystem／PhaseManager／PlayerInteractor／PlayerEffects 時該欄顯示 N/A。
 /// </summary>
 public class DevOverlay : MonoBehaviour
 {
@@ -15,12 +16,16 @@ public class DevOverlay : MonoBehaviour
 
     private PlayerHealth _playerHealth;
     private ExposureSystem _exposureSystem;
+    private PlayerInteractor _playerInteractor;
+    private PlayerEffects _playerEffects;
     private GUIStyle _style;
 
     private void Start()
     {
         _playerHealth = FindFirstObjectByType<PlayerHealth>();
         _exposureSystem = FindFirstObjectByType<ExposureSystem>();
+        _playerInteractor = FindFirstObjectByType<PlayerInteractor>();
+        _playerEffects = FindFirstObjectByType<PlayerEffects>();
     }
 
     private void OnGUI()
@@ -73,6 +78,8 @@ public class DevOverlay : MonoBehaviour
             "第三階段快照：" + (Phase3Checkpoint.HasSnapshot ? Phase3Checkpoint.Snapshot.ToString() : "（無）") + "\n" +
             "HP：" + hpText + "\n" +
             "暴露值：" + exposureText + "\n" +
+            GetInteractText() +
+            GetItemText() +
             GetResultText(gameManager) +
             "──────────\n" +
             DevHotkeys.HelpText;
@@ -115,6 +122,51 @@ public class DevOverlay : MonoBehaviour
 
         return "階段：" + phaseManager.CurrentPhase + "　" + eventText + "　空檔倒數：" + gapText + "\n" +
                "藏寶圖：" + (phaseManager.HasTreasureMap ? "有" : "無") + "　里程碑：" + milestones + "\n";
+    }
+
+    /// <summary>互動目標與 QTE 狀態。</summary>
+    private string GetInteractText()
+    {
+        if (_playerInteractor == null)
+        {
+            return "互動目標：N/A（沒有 PlayerInteractor）\n";
+        }
+
+        IInteractable target = _playerInteractor.CurrentTarget;
+        string targetText = target is Component component && component != null
+            ? component.name + "「" + target.InteractPrompt + "」"
+            : "（無）";
+
+        string qteText = "否";
+        if (_playerInteractor.IsInQte)
+        {
+            qteText = "是";
+            if (_playerInteractor.CurrentQteTarget is FakeSmokerNPC fake && fake != null)
+            {
+                qteText += "（" + fake.Presses + "/" + fake.RequiredPresses + " 下，剩 " + fake.TimeRemaining.ToString("F1") + " 秒）";
+            }
+        }
+
+        return "互動目標：" + targetText + "　QTE 中：" + qteText + "\n";
+    }
+
+    /// <summary>三種道具的狀態與噴霧冷卻。</summary>
+    private string GetItemText()
+    {
+        if (_playerEffects == null)
+        {
+            return "道具：N/A（沒有 PlayerEffects）\n";
+        }
+
+        string phase3Text = _playerEffects.IsPhase3ItemAvailable ? "可用" : "第三階段才能用";
+        float remaining = _playerEffects.SprayCooldownRemaining;
+        string sprayText = remaining > 0f
+            ? "冷卻 " + remaining.ToString("F1") + " / " + _playerEffects.SprayCooldown.ToString("F1") + " 秒"
+            : "可用";
+
+        return "道具：貼片 " + phase3Text + "　口嚼錠 " + phase3Text + "（半徑 " + _playerEffects.GumClearRadius
+               + "，場上可清除煙霧 " + ClearableSmoke.All.Count + " 個）　噴霧 " + sprayText + "\n" +
+               "最近一次使用：" + _playerEffects.LastUseText + "\n";
     }
 
     private static string FormatTime(float seconds)

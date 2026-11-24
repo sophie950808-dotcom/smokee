@@ -1,6 +1,13 @@
 # INTERFACES.md — 共用介面規格（v3.1／第二次檢核）
 
-> 更新日期：2026-11-25（A11）。依據 `docs/GDD_v3.1.md` 與 `docs/DECISIONS.md`。
+> 更新日期：2026-11-25（A13）。依據 `docs/GDD_v3.1.md` 與 `docs/DECISIONS.md`。
+>
+> **A13 更新內容（2026-11-25）**
+> - 🆕 可選介面 `IInteractCondition`（目標自己的互動條件）、`IQteInteractable`（QTE 期間 E 鍵轉交）；PlayerInteractor 🆕 `CurrentQteTarget`、`OnQteModeChanged`（第 2 節）
+> - 🆕 `IBossDamageable`：噴霧只認這個介面（第 1 節）；🆕 `IClearableSmoke` ＋ `ClearableSmoke` 登記表：口嚼錠清除菸圈（第 14 節）
+> - PlayerEffects 完成；🆕 `OnItemUseRejected`、`OnGumUsed`、`GumClearRadius`、`IsPhase3ItemAvailable`（第 12 節）
+> - 刪除：`PlayerEffects.ApplyItem`／`OnEffectStarted`／`OnEffectEnded`、`ExposureSystem.RiseMultiplier`／`IsVisualSuppressed`、`PlayerAttack.HitCount`、`ItemType` 的 3 個舊道具、`BossAttack.OnSmokeCleared`（改用 `ClearableSmoke.OnCleared`）
+> - 標 🆕A13 = 這次新增
 >
 > **A11 更新內容（2026-11-25）**
 > - GameManager：倒數完全移除（時間到不會失敗）；用時；**第三階段淨化進度固定 60%、不跟 BOSS 血量連動**，BOSS 被打倒（🆕 `NotifyBossDefeated()`）才變 100%；結算改用用時
@@ -17,7 +24,7 @@
 > 「擁有者」= 唯一可以修改這支檔案的人。
 > 標 🆕 = 這次新增；標 ⚠️Obsolete = 已標記即將移除（還能用，但會出現黃色警告，見第 20 節）。
 > 「A 已建空殼」= A10 已經建立檔案、名稱都對，但內容由後面的任務（A11–A17）才完成。
-> A10 已建空殼的檔案：`PhaseManager`、`TutorialManager`、`TaskHint`、`ItemRewards`、`TreasureChest`、`BossController`、`BossHealth`、`BossAttack`、`SmokerNPC`、`PlayerEffects`。
+> A10 已建空殼的檔案：`PhaseManager`、`TutorialManager`、`TaskHint`、`ItemRewards`、`TreasureChest`、`BossController`、`BossHealth`、`BossAttack`、`SmokerNPC`、`PlayerEffects`（A13 已完成）。
 > 空殼的方法現在只會印出 Log；**B、C 可以先照名稱寫程式、可以編譯**，實際效果等 A 的對應任務完成。
 > B、C 負責的新類別（StoryEventDirector、DialogueUI 等，第 17 節）A 不建空殼，由各自的任務建立。
 
@@ -50,9 +57,8 @@ public enum MonsterGroup { Tutorial, Phase1, EventGap, StoryEvent }
 // 🆕 可以被個別鎖住的玩家操作（新手教學用）
 public enum PlayerAction { Move, Look, Jump, Run, ViewToggle, Attack, Interact, UseItem }
 
-// 道具：順序不變（避免已存的資料跑掉），舊道具標記 Obsolete，C7 刪除後由 A 移除
-public enum ItemType { NicotineGum, NicotinePatch, [Obsolete] NicotineInhaler,
-                       NicotineSpray, [Obsolete] Champix, [Obsolete] Bupropion }
+// 道具：A13 刪除舊道具，編號寫死不變（避免已存的資料對錯道具；2、4、5 是已刪除的舊道具）
+public enum ItemType { NicotineGum = 0, NicotinePatch = 1, NicotineSpray = 3 }
 //   NicotinePatch 尼古丁貼片｜NicotineGum 尼古丁口嚼錠｜NicotineSpray 尼古丁戒菸噴霧
 
 // 🆕 使用道具的結果（PlayerEffects.TryUseItem 回傳）
@@ -108,12 +114,21 @@ public interface IHittable {
 | `event Action<IHittable> OnTargetChanged` | 不變 |
 | `event Action OnAttack` | 不變（B 接揮擊音效、動畫） |
 | `event Action<IHittable, Vector3> OnHit` | 不變（B 接命中特效） |
-| ⚠️Obsolete `int HitCount` | 吸入劑已刪除，固定 1 |
+| ~~`int HitCount`~~ | ✅A13 已刪除（每次命中固定 `TakeHit(1)`） |
 
 - 判定範圍：前方 **90 度扇形**（Inspector `_angle`，已經是 90）。`PlayerController.IsActionAllowed(PlayerAction.Attack)` 為 false 時不能攻擊（新手教學前 3 步）。
 - 對 BOSS：打到 BossHealth 時，每下傷害 = `BossHealth` 的 Inspector「近戰傷害」（預設 3）。BOSS 在天上時打不到。
 
 ### `TargetMarker`（擁有者：A）— 不變
+
+### 🆕A13 介面 `IBossDamageable` `Scripts/Combat/IBossDamageable.cs`（擁有者：A）
+```csharp
+public interface IBossDamageable {
+    void TakeDamage(float amount, DamageSource source);   // 噴霧：(7.5, DamageSource.Spray)
+}
+```
+- **噴霧只認這個介面**（PlayerEffects 不直接依賴 BossHealth）。實作者：A14 的 `BossHealth`、DevTools 的 `FakeBoss`。
+- **小菸怪不要實作**（噴霧對小菸怪無效）。實作的物件（或子物件）要有 Collider（可以是 Trigger）。
 
 ## 2. 介面 `IInteractable` `Scripts/Interaction/IInteractable.cs`（擁有者：A）
 
@@ -128,15 +143,39 @@ public interface IInteractable {
 - 介面本身不變。**實作者改成：A 的 TreasureChest、A 的 SmokerNPC、B 的故事 NPC（求救 NPC、吸菸者）。**
 - E 鍵統一用在：NPC 對話與接任務、故事互動（例如捏熄爸爸的菸蒂）、寶箱、第三階段捏熄菸蒂（QTE）。**只有 PlayerInteractor 讀 E。不使用 Q。**
 
-### `PlayerInteractor` `Scripts/Interaction/PlayerInteractor.cs`（擁有者：A）
+### 🆕A13 可選介面 `IInteractCondition` `Scripts/Interaction/IInteractCondition.cs`（擁有者：A）
+```csharp
+public interface IInteractCondition {
+    bool CanInteractFrom(Transform player);   // player = 玩家根物件（position 腳底、forward 角色面向）
+}
+```
+- `IInteractable` **另外**實作這個時，PlayerInteractor 會多問一次；沒實作的物件照原本規則（**B 現有的 NPC 不用改**）。
+- 用途：A16 的 SmokerNPC「面向它、前方 90 度、2 公尺內」。PlayerInteractor 本身的搜尋範圍是 2.5 公尺，條件只能**更嚴格**，不能更寬。
+
+### 🆕A13 可選介面 `IQteInteractable` `Scripts/Interaction/IQteInteractable.cs`（擁有者：A）
+```csharp
+public interface IQteInteractable : IInteractable {
+    bool IsQteActive { get; }    // QTE 進行中
+    void RegisterQtePress();     // 【只給 PlayerInteractor】QTE 期間每按一次 E（不含開始的第一下）
+}
+```
+- 流程：按 E → `Interact()`（目標自己開始 QTE、**第一下自己算**）→ `IsQteActive` 為 true → PlayerInteractor 進入 QTE 模式。
+- QTE 模式：鎖定這個目標（不切換到別的目標）、用 key `"Qte"` 鎖住 `Move`、`Jump`（視角可以轉）、之後每次按 E 呼叫 `RegisterQtePress()`。
+- `IsQteActive` 變回 false（成功、失敗、離開範圍，**由目標自己判定**）、目標被停用或刪除 → 結束 QTE 模式、解鎖移動、恢復正常找目標。
+- 實作者：A16 的 SmokerNPC、DevTools 的 `FakeSmokerNPC`。
+
+### `PlayerInteractor` `Scripts/Interaction/PlayerInteractor.cs`（擁有者：A，A13 完成）
 | 成員 | 說明 |
 |---|---|
-| `IInteractable CurrentTarget { get; }` | 不變 |
+| `IInteractable CurrentTarget { get; }` | 不變（QTE 期間固定是 QTE 目標） |
 | `event Action<IInteractable> OnFocusChanged` | 不變（C 的「按 E」提示用） |
-| 🆕 `event Action<IInteractable> OnInteracted` | 玩家按 E 成功互動時（B 可接音效） |
-| 🆕 `bool IsInQte { get; }` | 正在 QTE 連打中。這段期間 E 鍵全部交給 QTE，不會找其他目標 |
+| `event Action<IInteractable> OnInteracted` | 玩家按 E 成功互動時（B 可接音效）。QTE 期間的連打不會觸發 |
+| `bool IsInQte { get; }` | 正在 QTE 連打中。這段期間 E 鍵全部交給 QTE 目標，不會找其他目標 |
+| 🆕A13 `IQteInteractable CurrentQteTarget { get; }` | 正在 QTE 的目標；沒有時 null |
+| 🆕A13 `event Action<bool> OnQteModeChanged` | 進入（true）／離開（false）QTE 模式。C 可以用來把「按 E」提示換成「連打 E！」 |
 
-- `PlayerController.IsActionAllowed(PlayerAction.Interact)` 為 false 時（新手教學、對話中）目標為 null。
+- 目標選擇：範圍內（2.5 公尺）最近、`CanInteract` 為 true、通過 `IInteractCondition`（有實作的話）、沒被牆擋住。
+- **沒有目標（提示消失、按 E 沒反應）的時機**：`PlayerController.IsActionAllowed(PlayerAction.Interact)` 為 false（控制鎖、新手教學、暫停）、GameManager「暫停計時」中（對話、過場、視窗）、遊戲結束（`Ended`）。QTE 期間遇到這些情況時，E 不會轉交，但 QTE 模式不會中斷（計時由目標自己決定）。
 
 ---
 
@@ -352,7 +391,7 @@ public static class TaskHint {
 |---|---|
 | `Exposure` / `VisualExposure` / `IsWarning` / `IsMaxed` / `SmokeSeconds` / 三個事件 | 不變（`VisualExposure` 現在永遠等於 `Exposure`） |
 | 🆕 `void ResetExposure()` | 【只給 GameManager】教學結束、重新挑戰 |
-| ⚠️Obsolete `RiseMultiplier`、`IsVisualSuppressed` | 舊道具效果，不再使用 |
+| ~~`RiseMultiplier`、`IsVisualSuppressed`~~ | ✅A13 已刪除 |
 
 - 「暫停計時」期間暴露值不變。
 
@@ -373,24 +412,41 @@ public static class TaskHint {
 
 - 掛在：開場朋友、每一隻菸怪、吸菸 NPC、BOSS、菸炮落地的煙霧區。
 
-## 12. `PlayerEffects` `Scripts/Player/PlayerEffects.cs`（擁有者：A，A13 完成）
+## 12. `PlayerEffects` `Scripts/Player/PlayerEffects.cs`（擁有者：A，A13 完成；掛在 Player 上）
 
 | 成員 | 說明 |
 |---|---|
-| 🆕 `ItemUseResult TryUseItem(ItemType type)` | **C 的背包按右鍵時呼叫**。回傳 `Consumed` 時背包減 1；其他結果不要扣 |
-| 🆕 `float SprayCooldown { get; }` / `float SprayCooldownRemaining { get; }` | C 的背包顯示噴霧冷卻 |
-| 🆕 `event Action<ItemType> OnItemUsed` | 道具成功使用（B 特效、音效） |
-| 🆕 `event Action<Vector3, Vector3, bool> OnSprayFired` | 參數：起點、終點、有沒有打到 BOSS → **B 播噴霧特效** |
-| ⚠️Obsolete `void ApplyItem(ItemType type)` | 改用 `TryUseItem` |
-| ⚠️Obsolete `OnEffectStarted` / `OnEffectEnded` | 新道具沒有持續時間 |
+| `ItemUseResult TryUseItem(ItemType type)` | **C 的背包按右鍵時呼叫**。回傳 `Consumed` 時背包減 1；其他結果不要扣（噴霧回傳 `UsedNotConsumed`） |
+| `float SprayCooldown { get; }` / `float SprayCooldownRemaining { get; }` | C 的背包顯示噴霧冷卻（剩餘 ÷ 總秒數） |
+| 🆕A13 `bool IsPhase3ItemAvailable { get; }` | 貼片、口嚼錠現在能不能用（= 第三階段）。C 可以把圖示變灰 |
+| 🆕A13 `float GumClearRadius { get; }` | 口嚼錠清除半徑 |
+| `event Action<ItemType> OnItemUsed` | 道具成功使用（B 特效、音效） |
+| 🆕A13 `event Action<ItemType, ItemUseResult, string> OnItemUseRejected` | 沒用成功（不消耗）。參數：道具、結果、原因文字。給音效、背包抖動用；**畫面文字不用 C 顯示**（見下表） |
+| `event Action<Vector3, Vector3, bool> OnSprayFired` | 參數：起點（玩家胸口）、終點（打中的點或最遠距離）、有沒有打到 BOSS → **B 播噴霧特效** |
+| 🆕A13 `event Action<Vector3, float, int> OnGumUsed` | 參數：中心（玩家腳底）、半徑、清掉幾個 |
+| ~~`ApplyItem`、`OnEffectStarted`、`OnEffectEnded`~~ | ✅A13 已刪除 |
 
 | 道具 | 效果 | 限制 |
 |---|---|---|
-| 尼古丁貼片 | HP +30（不超過上限） | 只能在第三階段；一次 |
-| 尼古丁口嚼錠 | 清除玩家半徑 15 公尺內所有 BOSS 菸圈與菸炮煙霧區 | 只能在第三階段；一次 |
-| 尼古丁戒菸噴霧 | 朝**鏡頭中央**方向瞬間判定，只對 BOSS 造成 7.5 傷害；對小菸怪無效；最遠 30 公尺【暫定】 | 無次數限制；冷卻 1.5 秒 |
+| 尼古丁貼片 | `PlayerHealth.Heal(30)`（不超過上限） | 只能在第三階段；一次；**滿血時不能用**（不消耗） |
+| 尼古丁口嚼錠 | `ClearableSmoke.ClearInRadius(玩家位置, 15)`：清除 15 公尺內（3D 距離）所有 BOSS 菸圈與菸炮煙霧區 | 只能在第三階段；一次 |
+| 尼古丁戒菸噴霧 | 從**鏡頭中央**射線瞬間判定（最遠 30 公尺【暫定】）；最先碰到 `IBossDamageable` → `TakeDamage(7.5, Spray)` | 無次數限制；冷卻 1.5 秒；不限階段（拿到時已經是第三階段） |
 
-- 第三階段 = `PhaseManager.CurrentPhase == Phase3`。提早使用 → PlayerEffects 自己呼叫 `TaskHint.ShowToast("第三階段才能使用")`，回傳 `NotYet`，C 不用另外顯示。
+- 噴霧射線：**穿過**玩家自己、不是 BOSS 的 Trigger、小菸怪（`IHittable`）；碰到其他實心物件（牆）就停下。
+- 第三階段 = `PhaseManager.CurrentPhase == Phase3`。
+- 使用結果與提示：
+
+| 情況 | 回傳 | 畫面提示 | 背包 |
+|---|---|---|---|
+| 操作被鎖（教學、對話、暫停）、「暫停計時」中、遊戲結束 | `Locked` | 無 | 不扣 |
+| 第三階段前用貼片／口嚼錠 | `NotYet` | **PlayerEffects 自己** `TaskHint.ShowToast("第三階段才能使用")`（C 不用另外顯示） | 不扣 |
+| 噴霧冷卻中 | `OnCooldown` | 無（背包 UI 顯示冷卻） | 不扣 |
+| 滿血時用貼片 | `Failed` | **PlayerEffects 自己** `TaskHint.ShowToast("HP 已經是滿的")` | 不扣 |
+| 其他失敗（例如找不到攝影機） | `Failed` | 無 | 不扣 |
+| 貼片、口嚼錠成功 | `Consumed` | — | **減 1** |
+| 噴霧成功（有沒有打中都算） | `UsedNotConsumed` | — | 不扣 |
+
+- 所有數值都是 Inspector 參數：回血量、口嚼錠半徑、噴霧傷害、冷卻、射程、提示文字。
 
 ### 🆕 `ItemRewards` `Scripts/Core/ItemRewards.cs`（擁有者：A，static class）
 給道具的統一入口，避免 A、B 的程式直接依賴 C 的背包。
@@ -449,7 +505,7 @@ BOSS Prefab 結構：根物件掛 `BossController`、`BossHealth`、`BossAttack`
 | `event Action<float, float> OnBossHpChanged` | 參數：目前、最大 → **C 的 BOSS 血條**（A11 起淨化進度不跟血量連動） |
 | `event Action<float, DamageSource> OnBossDamaged` | 參數：傷害、來源 → B 受擊特效 |
 | `event Action OnBossDefeated` | |
-| `void TakeDamage(float amount, DamageSource source)` | 噴霧、開發者工具 |
+| `void TakeDamage(float amount, DamageSource source)` | 噴霧、開發者工具。🆕A13 **BossHealth 要實作 `IBossDamageable`**（A14） |
 | `TakeHit(int)` | 近戰：每下 3；BOSS 在天上時無效 |
 
 - 回血：地面 = 抽菸人數 × 1／秒；天上 = 1 + 抽菸人數 × 1／秒；Final 不回血。
@@ -461,10 +517,27 @@ BOSS Prefab 結構：根物件掛 `BossController`、`BossHealth`、`BossAttack`
 | `event Action<Vector3, float> OnCannonFired` | 參數：落點、幾秒後落地 → **B 在落點顯示預警** |
 | `event Action<Vector3> OnCannonLanded` | 落地（之後留下 3 秒煙霧區） |
 | `event Action OnMeleeWindup` / `event Action<bool> OnMeleeSwing` | 物理攻擊：預備動作開始、揮下（參數：有沒有打中） |
-| `event Action<Vector3, float> OnSmokeCleared` | 口嚼錠清除：中心、半徑 → B 特效 |
-| `int ClearSmokeInRadius(Vector3 center, float radius)` | 【只給 PlayerEffects】清掉範圍內的菸圈與煙霧區，回傳清掉幾個 |
+| ~~`event Action<Vector3, float> OnSmokeCleared`~~ | ✅A13 刪除，改用 `ClearableSmoke.OnCleared` |
+| `int ClearSmokeInRadius(Vector3 center, float radius)` | A13 起等於 `ClearableSmoke.ClearInRadius`（保留相容） |
 
 - 菸圈、菸炮、煙霧區是 A 的小腳本（`BossSmokeRing`、`BossCannonShell`、`BossSmokeZone`，同資料夾）＋ Prefab。**B 可以換 Prefab 裡的外觀**（不要改腳本、不要刪碰撞體）。
+- 🆕A13 **菸圈與煙霧區要實作 `IClearableSmoke` 並登記到 `ClearableSmoke`**（A14、A16）；還在空中飛的菸炮不要登記（不清除）。
+
+### 🆕A13 口嚼錠清除：`IClearableSmoke` ＋ `ClearableSmoke`（`Scripts/Boss/`，擁有者：A）
+```csharp
+public interface IClearableSmoke {
+    Vector3 SmokePosition { get; }   // 判斷在不在範圍內
+    void    ClearSmoke();            // 被清除：自己消失（Destroy 或停用）
+}
+public static class ClearableSmoke {
+    public static IReadOnlyList<IClearableSmoke> All { get; }
+    public static event Action<Vector3, float> OnCleared;   // 參數：中心、半徑 → B 的清除特效（範圍內沒東西也會觸發）
+    public static void Register(IClearableSmoke smoke);     // 出生時（OnEnable）
+    public static void Unregister(IClearableSmoke smoke);   // 消失時（OnDisable）
+    public static int  ClearInRadius(Vector3 center, float radius); // 【只給 PlayerEffects、BossAttack】回傳清掉幾個
+}
+```
+- 實作者：A14 的 `BossSmokeRing`、A16 的 `BossSmokeZone`、DevTools 的 `FakeSmokeRing`。
 
 ## 15. 🆕 `SmokerNPC` `Scripts/Boss/SmokerNPC.cs`（擁有者：A，A16 完成）
 
@@ -478,8 +551,10 @@ BOSS Prefab 結構：根物件掛 `BossController`、`BossHealth`、`BossAttack`
 | `bool IsSmoking { get; }` | 小地圖圖示：false = 熄滅 |
 | `event Action<SmokerNPC> OnSnuffed` / `static event Action<SmokerNPC> OnAnySnuffed` | 被捏熄 → B 熄菸特效、C 小地圖 |
 | `string DisplayName { get; }` | 例如「阿公」 |
-| `CanInteract` | 正在抽菸、BOSS 戰中、玩家面向它（前方 90 度）且 2 公尺內 |
-| `Interact()` | 開始 QTE |
+| `CanInteract` | 正在抽菸、BOSS 戰中 |
+| 🆕A13 `CanInteractFrom(Transform player)` | **實作 `IInteractCondition`**（A16）：玩家面向它（前方 90 度）且 2 公尺內 |
+| 🆕A13 `IsQteActive` | **實作 `IQteInteractable`**（A16）：`ActiveQte == this` |
+| `Interact()` | 開始 QTE（這一下算第 1 下） |
 | `void BeginSmoking()` | 【只給 A】BOSS 戰開始、重新挑戰時開始抽菸 |
 | `void RegisterQtePress()` | 【只給 PlayerInteractor】QTE 期間每按一次 E |
 
@@ -493,7 +568,8 @@ BOSS Prefab 結構：根物件掛 `BossController`、`BossHealth`、`BossAttack`
 | `static event Action<SmokerNPC, bool> OnQteEnded` | 參數：是否成功 → QteBarUI 隱藏 |
 
 - 第一下 E 開始 QTE 並算 1 下；QTE 期間不能移動、可以轉視角；被 BOSS 打中不中斷；超過時間失敗、進度歸零、可以馬上重試。
-- E 鍵由 PlayerInteractor 讀，再交給 `ActiveQte`。**C 只負責顯示，不讀 E。**
+- E 鍵由 PlayerInteractor 讀，透過 `IQteInteractable.RegisterQtePress()` 交給正在 QTE 的 NPC（第 2 節）。**C 只負責顯示，不讀 E。**
+- QTE 期間鎖移動由 PlayerInteractor 負責（key `"Qte"`），SmokerNPC 不用自己鎖。
 
 ## 16. `ScoreCalculator` `Scripts/Core/ScoreCalculator.cs`（擁有者：A，A11 用時分、A18 頭銜）
 
@@ -607,7 +683,9 @@ public static class ScoreCalculator {
 ### `Inventory` / `InventoryUI` / `HealthItemData`（擁有者：C，C7）
 - `Inventory`：`static Instance`、`int GetCount(ItemType)`、`ItemType? SelectedItem`、`event Action OnInventoryChanged`。
 - 監聽 `ItemRewards.OnItemGranted` 加道具。
-- 滾輪切換、右鍵使用（C 讀；先檢查 `PlayerController.IsActionAllowed(PlayerAction.UseItem)`）→ `PlayerEffects.TryUseItem(type)` → 回傳 `Consumed` 才減 1。
+- 滾輪切換、右鍵使用（C 讀；**兩個都要**先檢查 `PlayerController.IsActionAllowed(PlayerAction.UseItem)`，新手教學期間會被鎖）→ `PlayerEffects.TryUseItem(type)` → 回傳 `Consumed` 才減 1（結果表見第 12 節）。
+- 噴霧冷卻：`SprayCooldownRemaining ÷ SprayCooldown`；「第三階段才能使用」A 已自動顯示 Toast，背包不用再顯示（要做音效可聽 `OnItemUseRejected`）。
+- 背包只放 3 種道具（`ItemType` A13 起只剩這 3 個）；藏寶圖不放進背包。
 - 重新挑戰（**A11 改**）：背包快照改由 A 的 `Phase3Checkpoint` 保存，**C 不用自己記**。C 需要提供 `GetCount(ItemType)` 與 🆕【待 C 確認】`void SetCount(ItemType type, int count)`，見第 22 節。
 - `HealthItemData` 欄位至少：`ItemType Type`、`string DisplayName`、`Sprite Icon`、`string InfoText`。
 
@@ -740,10 +818,11 @@ public static class ScoreCalculator {
 | `RouteManager.NotifyPlayerLeftAlley()`、`AlleyExitTrigger` | ⚠️Obsolete（A11 起不做任何事；GameScene 還掛著元件） | B 從 GameScene 移除元件；A 在 I3 刪檔 |
 | `GameManager` Inspector `autoStartRound` | ✅ A11 改成 `devAutoStart`（Off／Tutorial／Phase1） | — |
 | `MonsterSize.Large` | ⚠️Obsolete | B10 停用大型菸怪 Prefab 後，A 在 I3 刪除 |
-| `ItemType.NicotineInhaler`、`Champix`、`Bupropion` | ⚠️Obsolete | C7 刪除舊道具資料後，A 在 I3 刪除 |
-| `PlayerAttack.HitCount` | ⚠️Obsolete | A13 刪除 |
-| `ExposureSystem.RiseMultiplier`、`IsVisualSuppressed` | ⚠️Obsolete | A13 刪除 |
-| `PlayerEffects.ApplyItem`、`OnEffectStarted`、`OnEffectEnded` | ⚠️Obsolete | A13 刪除 |
+| `ItemType.NicotineInhaler`、`Champix`、`Bupropion` | ✅A13 已刪除（沒有人在用；其他道具編號不變） | — |
+| `PlayerAttack.HitCount` | ✅A13 已刪除 | — |
+| `ExposureSystem.RiseMultiplier`、`IsVisualSuppressed` | ✅A13 已刪除（`VisualExposure` 保留，永遠等於 `Exposure`） | — |
+| `PlayerEffects.ApplyItem`、`OnEffectStarted`、`OnEffectEnded` | ✅A13 已刪除 | — |
+| `BossAttack.OnSmokeCleared` | ✅A13 已刪除，改用 `ClearableSmoke.OnCleared` | — |
 | `PlayerController.SetControlEnabled` | 保留（等於 key "Default"） | — |
 | `SmokeMonster.ProgressValue` | B 的檔案，A 不標記 | B10 改成 `PurificationUnits` |
 | `EscortNPC`、`SafeZone`、`GuideLine` | 刪除 | B7（在 Unity Project 視窗） |

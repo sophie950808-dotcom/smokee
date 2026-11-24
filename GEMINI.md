@@ -43,11 +43,11 @@
   - 傳送用 `PlayerController.TeleportTo(...)`，期間 `GameManager.SetTimerPaused("Teleport", true)`、`PlayerController.SetControlLock("Teleport", true)`
 - **BOSS 外觀與演出**（B13、B15–B17）：BOSS 的移動、縮放、傷害判定是 A 的；B 只做模型（子物件）、動畫、特效
   - 監聽 `PhaseManager.OnBossIntroRequested` 播登場 → `PhaseManager.NotifyBossIntroFinished()`（重新挑戰會再播一次）
-  - 監聽 `BossController.OnStateChanged`、`OnSizeLevelChanged`、`BossHealth.OnBossDamaged`、`BossAttack` 的事件、`PlayerEffects.OnSprayFired`
+  - 監聽 `BossController.OnStateChanged`、`OnSizeLevelChanged`、`BossHealth.OnBossDamaged`、`BossAttack` 的事件、`PlayerEffects.OnSprayFired(起點, 終點, 有沒有打中)`、口嚼錠清除特效聽 `ClearableSmoke.OnCleared(中心, 半徑)`（A13 起取代 `BossAttack.OnSmokeCleared`）
   - 監聽 `PhaseManager.OnEndingRequested` 播結局 → `PhaseManager.NotifyEndingFinished()`
   - 過場鏡頭用 `PlayerController.SetCameraOverride(點)`，不用再把 PlayerController 停用
 - 畫面效果讀 `ExposureSystem.VisualExposure`（不變）
-- 會被玩家按 E 互動的 NPC 實作 `IInteractable`；**不要自己讀 E 鍵或 Q 鍵**
+- 會被玩家按 E 互動的 NPC 實作 `IInteractable`；**不要自己讀 E 鍵或 Q 鍵**。需要額外條件（例如要面向 NPC）時，可以另外實作可選介面 `IInteractCondition`（A13，見 INTERFACES 第 2 節）
 - **INTERFACES 還沒寫的名稱不要自己發明**，不夠用請 B 去找 A
 - B7 要在 Unity 的 Project 視窗刪除：`EscortNPC`、`SafeZone`、`GuideLine`、`Assets/_Project/UI/InGameMenu.cs`（暫停選單改由 C 做）
 - 標記 `[Obsolete]` 的東西（黃色警告）**不要自己刪**，等各自的刪除任務

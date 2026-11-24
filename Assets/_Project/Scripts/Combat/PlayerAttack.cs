@@ -25,25 +25,12 @@ public class PlayerAttack : MonoBehaviour
     [Tooltip("兩次揮擊之間至少要隔幾秒")]
     [SerializeField] private float _cooldown = 0.5f;
 
-    [Header("傷害")]
-    [Tooltip("每次命中呼叫 TakeHit 時傳入的次數。v3.1 固定 1（吸入劑已刪除）")]
-    [Min(1)]
-    [SerializeField] private int _hitCount = 1;
-
     [Header("Layer")]
     [Tooltip("哪些 Layer 的物件可以被攻擊。預設全部")]
     [SerializeField] private LayerMask _targetMask = ~0;
 
     [Tooltip("哪些 Layer 會擋住攻擊（牆）。預設全部；Trigger 碰撞體不會擋")]
     [SerializeField] private LayerMask _obstacleMask = ~0;
-
-    /// <summary>【即將移除】每次命中時傳給 TakeHit 的次數（最小 1）。v3.1 已刪除吸入劑，固定 1。</summary>
-    [Obsolete("v3.1 已刪除吸入劑，固定 1。A13 刪除。")]
-    public int HitCount
-    {
-        get => _hitCount;
-        set => _hitCount = Mathf.Max(1, value);
-    }
 
     /// <summary>現在按左鍵會打到的目標；沒有時為 null。每幀更新，和實際攻擊用同一套判定。</summary>
     public IHittable CurrentTarget => _currentTarget;
@@ -128,7 +115,8 @@ public class PlayerAttack : MonoBehaviour
         _lastSwingHit = true;
         _lastHitPoint = hitPoint;
 
-        target.TakeHit(_hitCount);
+        // v3.1 每次命中固定算 1 下（吸入劑已刪除）
+        target.TakeHit(1);
         OnHit?.Invoke(target, hitPoint);
     }
 
