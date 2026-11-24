@@ -4,34 +4,72 @@
 > 本專案的 `CLAUDE.md` 是組員 A 的身分檔，**與你無關，請忽略**。
 
 ## 你的使用者
-- **組員 B**，負責場景、菸怪、開場演出、暴露畫面效果、護送 NPC
+- **組員 B**，負責場景、菸怪、開場演出、NPC 故事事件、BOSS 外觀與特效、過場動畫、暴露畫面效果
+- 遊戲名稱《菸菸一熄》；企劃書是 `docs/GDD_v3.1.md`，規格以 `docs/DECISIONS.md` 為準（2026-11-22 新版：沒有倒數、三階段、BOSS 戰；**護送 NPC 已刪除**）
 - B 是程式、Git 與 vibecoding 的初學者，請用繁體中文、一步一步說明
 - **任何改動前都要先說明會改什麼、會有什麼結果，等 B 同意才執行**（見 AGENTS.md 第一節）
 
 ## B 負責的範圍
 - `Assets/_Project/Scripts/Monsters/`（但 `SmokeSource.cs` 是 A 的，只能使用、不能改）
-- `Assets/_Project/Scripts/Opening/`、`Scripts/NPC/`、`Scripts/VFX/`
+- `Assets/_Project/Scripts/Opening/`、`Scripts/NPC/`（故事事件）、`Scripts/VFX/`（含 BOSS 外觀特效）
+- BOSS 的**戰鬥邏輯**（血量、回血、攻擊判定）在 `Scripts/Boss/`，是 A 的；B 只負責外觀、動畫、特效，依 A 提供的事件播放
 - **`GameScene.unity` 只有 B 可以修改**；A、C 會把做好的 Prefab 交給 B 放進場景
 - 測試場景：`TestScene_B.unity`
 
-## B 必須照著 docs/INTERFACES.md 實作的介面
-- `SmokeMonster` 實作 `IHittable`；被擊敗時呼叫 `GameManager.Instance.AddPurificationProgress(ProgressValue)`
-- 菸怪與吸菸 NPC 都掛上 A 的 `SmokeSource` 元件
-- `OpeningSequence` 監聽 `RouteManager.Instance.OnRouteChosen`，演出結束呼叫 `RouteManager.Instance.NotifyOpeningFinished()`
-  - 路線 A 的重新載入由 RouteManager 處理，OpeningSequence **不要自己 `LoadScene`**
-  - 開場期間玩家控制的分工見 `docs/INTERFACES.md` 第 5 節（場景開始由 RouteManager 鎖住；選完路線到演出結束由 B 決定；路線 B 結束由 RouteManager 恢復）
-- 死巷出口：放一個 Collider（勾選 Is Trigger），掛上 A 的 `AlleyExitTrigger` 元件即可，**不需要自己呼叫 `NotifyPlayerLeftAlley()`**
-- 畫面效果讀 `ExposureSystem.VisualExposure`
-- `EscortNPC` 實作 `IInteractable`，護送成功呼叫 `PlayerHealth.Heal(10)`
+## B 必須照著 docs/INTERFACES.md 實作的介面（v3.1，A10 更新）
+**B 要看 INTERFACES.md 的：第 0 節（共用型別）、第 4 節（PhaseManager 給 B 的事件與方法）、第 5 節（教學發光）、第 6 節（TaskHint）、第 8 節（PlayerController 鎖操作、TeleportTo、SetCameraOverride）、第 11 節（SmokeSource 拒絕懲罰）、第 12 節（ItemRewards）、第 14–15 節（BOSS 事件）、第 17 節（B 擁有的類別）、第 18 節（三條流程）。**
+
+- **菸怪**（B10、B12）：`SmokeMonster` 實作 `IHittable`；新增 `int PurificationUnits`（整數，1000 = 100%）、`MonsterGroup Group`、`OnDefeated`／`OnAnyDefeated` 事件；被擊敗呼叫 `GameManager.Instance.AddPurification(PurificationUnits)`（舊的 `AddPurificationProgress` 會出現黃色警告，B10 改掉）
+  - 生成時用 `PhaseManager.Instance.GetMonsterUnits(group, index)` 設定淨化值（教學 0、第一階段 40、空檔 25、事件 33／33／34）
+  - Awake 時設 `SmokeSource.AffectedByRefusal = true`；`TakeHit` 時若 `SmokeSource.IsIndestructible` 為 true → 播「打不掉」回饋、不算次數
+  - 生成時機：監聽 `PhaseManager.OnPhaseChanged(Phase1)`（5 隻）、`OnEventGapStarted`（每次 2 隻）；故事地點 3 隻由故事事件生成
+- **開場**（B7）：`OpeningSequence` 監聽 `RouteManager.Instance.OnRouteChosen`
+  - 接受路線：隨機一位路人演出，結束呼叫 `RouteManager.Instance.NotifyOpeningFinished()`（重新載入由 RouteManager 處理，**不要自己 `LoadScene`**）
+  - 拒絕路線：**車庫門開好時就呼叫 `NotifyOpeningFinished()`**（新手教學從車庫裡的第 1 步開始），並移除 OnGUI 的「新手引導」文字（改由 TutorialManager 的任務提示）
+  - `AlleyExitTrigger` 已標記 Obsolete：B7 從 GameScene 的物件上移除這個元件
+- **新手教學發光**：監聽 `TutorialManager.OnStepChanged`，讀 `MoveTarget`、`TutorialMonster`；`GameScene` 的 TutorialManager 欄位由 B 拖入
+- **故事事件**（B9、B11、B12）：B 建立 `StoryEventDirector`、`StoryEventData`（ScriptableObject）、`StoryTeleporter`（名稱、成員見 INTERFACES 第 17 節）
+  - 監聽 `PhaseManager.OnStoryEventRequested(n)` → NPC 跑來求救；回報用 `PhaseManager.ReportEventAccepted／ReportHelpRefused／ReportEventCompleted(n)`
+  - 拒絕後 NPC 跟著玩家、實作 `IInteractable`，按 E **再跳一次「要幫忙嗎？」**
+  - 給道具用 `ItemRewards.Grant(ItemType)`（事件一貼片、事件二口嚼錠；藏寶圖由 PhaseManager 處理）
+  - 任務提示用 `TaskHint.SetTask("StoryEvent", 文字)`；對話用 C 的 `DialogueUI.Show(...)`；「要幫忙嗎？」用 C 的 `HelpPromptUI.Show(...)`
+  - 傳送用 `PlayerController.TeleportTo(...)`，期間 `GameManager.SetTimerPaused("Teleport", true)`、`PlayerController.SetControlLock("Teleport", true)`
+- **BOSS 外觀與演出**（B13、B15–B17）：BOSS 的移動、縮放、傷害判定是 A 的；B 只做模型（子物件）、動畫、特效
+  - 監聽 `PhaseManager.OnBossIntroRequested` 播登場 → `PhaseManager.NotifyBossIntroFinished()`（重新挑戰會再播一次）
+  - 監聽 `BossController.OnStateChanged`、`OnSizeLevelChanged`、`BossHealth.OnBossDamaged`、`BossAttack` 的事件、`PlayerEffects.OnSprayFired`
+  - 監聽 `PhaseManager.OnEndingRequested` 播結局 → `PhaseManager.NotifyEndingFinished()`
+  - 過場鏡頭用 `PlayerController.SetCameraOverride(點)`，不用再把 PlayerController 停用
+- 畫面效果讀 `ExposureSystem.VisualExposure`（不變）
+- 會被玩家按 E 互動的 NPC 實作 `IInteractable`；**不要自己讀 E 鍵或 Q 鍵**
+- **INTERFACES 還沒寫的名稱不要自己發明**，不夠用請 B 去找 A
+- B7 要在 Unity 的 Project 視窗刪除：`EscortNPC`、`SafeZone`、`GuideLine`、`Assets/_Project/UI/InGameMenu.cs`（暫停選單改由 C 做）
+- 標記 `[Obsolete]` 的東西（黃色警告）**不要自己刪**，等各自的刪除任務
 
 ## B 的任務清單（分工表）
-| 編號 | 內容 | 前置 |
+完整分工見 Google 試算表「煙煙一息 分工大表」。第一次檢核的 B1–B6、I2、F2 已完成。
+
+### 第二次檢核（12/03：整局可從頭玩到尾）
+| 日期 | 編號 | 內容 | 前置 |
+|---|---|---|---|
+| 11/23 | B8 | GameScene 外圍灰盒：故事地點 1–3、吸菸室、寶箱、4 位吸菸 NPC 位置 | — |
+| 11/24 | B7 | 刪除護送模組；接受路線改為隨機一位路人（咳嗽 → 台詞 → 動手 → 暈倒） | A10 |
+| 11/25 | B10 | 菸怪在出生點附近遊走；依階段生成 | A11 |
+| 11/26 | B9 | 故事事件流程：NPC 求救、淡出傳送、返回街道 | A11、B8、C8 |
+| 11/27 | B11 | 事件一至三演出：對話、E 互動、結局、交付道具 | B9、C8 |
+| 11/28 | B12 | 拒絕幫忙：菸怪無法消除、煙霧擴大、NPC 跟隨 | B9、B10、A15 |
+| 11/29 | B13 | 吸菸室、BOSS 簡單外觀與位置、吸菸 NPC 擺放（11/30 預留補進度） | B8、A14 |
+| 12/01 | I4 | 把所有 Prefab 放進 GameScene | I3 |
+| 12/02 | F5 | 檢查場景、碰撞與效能 | T2 |
+
+### 第三次檢核（12/17：可發表版本）
+| 日期 | 編號 | 內容 |
 |---|---|---|
-| B1 | GameScene 灰盒：死巷與一段街道 | A1 |
-| B2 | 菸怪 Prefab：大小兩種參數、受擊次數、消散 | A2 |
-| B3 | 簡化開場：路線 A 轉黑加字幕、路線 B 進入街道 | B1、C2 |
-| B4 | 在 GameScene 放置菸怪 | B1、B2 |
-| B5 | 暴露畫面效果（先用假的暴露值測試） | A2 |
+| 12/04 | B14 | BOSS 正式外觀與模型 |
+| 12/06 | B15 | 菸圈、菸炮、煙霧區特效；BOSS 隨血量降低並縮小 |
+| 12/08 | B16 | BOSS 登場動畫 |
+| 12/10 | B17 | 結局動畫（BOSS 遺言、綠色無煙城市） |
+| 12/12 | I6 | 新的 Prefab 與動畫放進 GameScene |
+| 12/15 | F8 | 檢查場景、碰撞與效能 |
 
 ## 注意
 - 需要安裝套件（例如後製效果）或修改 Project Settings 時，**不要自己做，請 B 去找 A**

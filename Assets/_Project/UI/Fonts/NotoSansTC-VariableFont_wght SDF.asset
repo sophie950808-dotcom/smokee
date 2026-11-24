@@ -291,6 +291,8 @@ MonoBehaviour:
       m_LigatureGlyphID: 1960
     - m_ComponentGlyphIDs: 3400000057000000
       m_LigatureGlyphID: 2090
+    - m_ComponentGlyphIDs: 2300000052000000
+      m_LigatureGlyphID: 2065
     m_GlyphPairAdjustmentRecords:
     - m_FirstAdjustmentRecord:
         m_GlyphIndex: 16

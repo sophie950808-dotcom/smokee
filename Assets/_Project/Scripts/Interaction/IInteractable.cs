@@ -1,7 +1,7 @@
 using UnityEngine;
 
 /// <summary>
-/// 可以按 E 互動的物件（例如 C 的 ChestController、B 的 EscortNPC）。
+/// 可以按 E 互動的物件（A 的 TreasureChest、A 的 SmokerNPC、B 的故事 NPC）。
 /// 只有 A 的 PlayerInteractor 會讀 E 鍵並呼叫 Interact()。
 /// </summary>
 public interface IInteractable

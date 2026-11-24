@@ -4,8 +4,10 @@ using UnityEngine;
 /// 死巷出口觸發器。B 把它掛在死巷出口的 Collider（勾選 Is Trigger）上即可，不用自己寫程式。
 /// 玩家穿過時呼叫 RouteManager.Instance.NotifyPlayerLeftAlley()。
 /// 「只在路線 B、開場結束後才有效、只觸發一次」由 RouteManager 判斷，玩家來回穿過也沒關係。
-/// 規格見 docs/INTERFACES.md 第 4 節。
+/// 規格見 docs/INTERFACES.md 第 7 節。
+/// 【即將移除】v3.1 不再用「走出死巷」開始計時，B 在 B7 從 GameScene 移除這個元件，A 在 I3 刪檔。
 /// </summary>
+[System.Obsolete("v3.1 不再用走出死巷開始計時。B7 從場景移除元件，A 在 I3 刪檔。")]
 public class AlleyExitTrigger : MonoBehaviour
 {
     private void Reset()

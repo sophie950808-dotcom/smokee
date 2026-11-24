@@ -15,6 +15,9 @@
 | `docs/CHATGPT_PROMPT.md` | C 的 ChatGPT | C 貼給 ChatGPT 的指示 | A |
 | `docs/INTERFACES.md` | 全部人 | **共用介面**：類別、方法、事件名稱 | A |
 | `docs/DECISIONS.md` | 全部人 | **已拍板的規則與數值**（優先於企劃書） | A |
+| `docs/GDD_v3.1.md` | 全部人 | **企劃書 v3.1**（Markdown 版，AI 讀得到；C 要上傳到 ChatGPT） | A |
+| `docs/菸菸一熄_企畫書_v3.1.docx` | 全部人 | 企劃書原稿（Word 版，內容和 GDD_v3.1.md 相同） | A |
+| `docs/learning/` | A | A 的 Claude Code 盤點紀錄（參考用） | A |
 | `docs/TEAM_GUIDE.md` | 全部人 | 這份指南 | A |
 
 **為什麼不會打架？**
@@ -38,7 +41,7 @@
 
 ### 2-3. 設定自己的 AI 工具
 - **B（Antigravity）**：用 Antigravity 打開 repo 資料夾（有 `Assets`、`AGENTS.md` 的那層）。第一次先問它：「你讀到了哪些規則檔？我是誰？我負責什麼？」確認它回答「組員 B」才開始工作。
-- **C（ChatGPT）**：照 `docs/CHATGPT_PROMPT.md` 的說明建一個 ChatGPT 專案，上傳三份檔案、貼上指示。第一次先問它：「我是誰？我可以改哪些資料夾？」確認它回答正確。
+- **C（ChatGPT）**：照 `docs/CHATGPT_PROMPT.md` 的說明建一個 ChatGPT 專案，上傳四份檔案（`AGENTS.md`、`docs/INTERFACES.md`、`docs/DECISIONS.md`、`docs/GDD_v3.1.md`）、貼上指示。第一次先問它：「我是誰？我可以改哪些資料夾？」確認它回答正確。
 
 ---
 

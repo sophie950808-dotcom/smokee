@@ -151,9 +151,11 @@ public class RouteManager : MonoBehaviour
     }
 
     /// <summary>
-    /// 玩家走出死巷（死巷出口的 AlleyExitTrigger 呼叫）→ 開始倒數。
+    /// 【即將移除】玩家走出死巷（死巷出口的 AlleyExitTrigger 呼叫）→ 開始倒數。
     /// 只有「選了 RefuseSmoke 且開場已結束」時有效，而且只會觸發一次。
+    /// v3.1 改成：路線 B 開場結束 → PhaseManager 開始新手教學。
     /// </summary>
+    [Obsolete("v3.1 改由 PhaseManager 在開場結束時開始新手教學。A11 刪除。")]
     public void NotifyPlayerLeftAlley()
     {
         if (_leftAlley || _chosenRoute != OpeningRoute.RefuseSmoke || !_openingFinished)
