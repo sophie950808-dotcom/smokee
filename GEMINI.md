@@ -16,8 +16,15 @@
 - **`GameScene.unity` 只有 B 可以修改**；A、C 會把做好的 Prefab 交給 B 放進場景
 - 測試場景：`TestScene_B.unity`
 
-## B 必須照著 docs/INTERFACES.md 實作的介面（v3.1，A10 更新）
-**B 要看 INTERFACES.md 的：第 0 節（共用型別）、第 4 節（PhaseManager 給 B 的事件與方法）、第 5 節（教學發光）、第 6 節（TaskHint）、第 8 節（PlayerController 鎖操作、TeleportTo、SetCameraOverride）、第 11 節（SmokeSource 拒絕懲罰）、第 12 節（ItemRewards）、第 14–15 節（BOSS 事件）、第 17 節（B 擁有的類別）、第 18 節（三條流程）。**
+## B 必須照著 docs/INTERFACES.md 實作的介面（v3.1，A11 更新：2026-11-25）
+**B 要看 INTERFACES.md 的：第 0 節（共用型別）、第 4 節（PhaseManager 給 B 的事件與方法）、第 5 節（教學發光）、第 6 節（TaskHint）、第 8 節（PlayerController 鎖操作、TeleportTo、SetCameraOverride）、第 11 節（SmokeSource 拒絕懲罰）、第 12 節（ItemRewards）、第 14–15 節（BOSS 事件）、第 17 節（B 擁有的類別）、第 18 節（三條流程）、第 22 節（第三階段起點）。**
+
+**A11 的變動（B 要注意）**
+- `PhaseManager` 已完成：GameScene 的 **GameManager 物件上要掛 `PhaseManager` 和 `TutorialManager`**（B 在 GameScene 加）
+- 第三階段淨化進度**固定 60%**，打倒 BOSS 才 100%；淨化里程碑事件 `PhaseManager.OnPurificationMilestone(20/60/100)`
+- 事件回報要照順序：先 `ReportEventAccepted(n)` 才能 `ReportEventCompleted(n)`；拒絕後重新接受也是呼叫 `ReportEventAccepted(n)`；事件一不能拒絕；編號、順序不對會被忽略並印黃色警告
+- A11 已經（經 A 同意）代改 `Opening/OpeningSequence.cs`：拒絕路線**車庫門開好就呼叫 `NotifyOpeningFinished()`**、移除 OnGUI 的「新手引導」文字。B 請先拉 develop 再改這支檔案
+- 第三階段起點（第 22 節）需要 B 配合的部分【待確認】：在 GameScene 放第三階段玩家起點（A 會做標記元件 `Phase3StartPoint`）；重新挑戰時（`Phase3Checkpoint.IsRetryPending`）開場不播放
 
 - **菸怪**（B10、B12）：`SmokeMonster` 實作 `IHittable`；新增 `int PurificationUnits`（整數，1000 = 100%）、`MonsterGroup Group`、`OnDefeated`／`OnAnyDefeated` 事件；被擊敗呼叫 `GameManager.Instance.AddPurification(PurificationUnits)`（舊的 `AddPurificationProgress` 會出現黃色警告，B10 改掉）
   - 生成時用 `PhaseManager.Instance.GetMonsterUnits(group, index)` 設定淨化值（教學 0、第一階段 40、空檔 25、事件 33／33／34）
@@ -25,8 +32,8 @@
   - 生成時機：監聽 `PhaseManager.OnPhaseChanged(Phase1)`（5 隻）、`OnEventGapStarted`（每次 2 隻）；故事地點 3 隻由故事事件生成
 - **開場**（B7）：`OpeningSequence` 監聽 `RouteManager.Instance.OnRouteChosen`
   - 接受路線：隨機一位路人演出，結束呼叫 `RouteManager.Instance.NotifyOpeningFinished()`（重新載入由 RouteManager 處理，**不要自己 `LoadScene`**）
-  - 拒絕路線：**車庫門開好時就呼叫 `NotifyOpeningFinished()`**（新手教學從車庫裡的第 1 步開始），並移除 OnGUI 的「新手引導」文字（改由 TutorialManager 的任務提示）
-  - `AlleyExitTrigger` 已標記 Obsolete：B7 從 GameScene 的物件上移除這個元件
+  - 拒絕路線：**車庫門開好時就呼叫 `NotifyOpeningFinished()`**（新手教學從車庫裡的第 1 步開始），並移除 OnGUI 的「新手引導」文字（改由 TutorialManager 的任務提示）——**A11 已代改完成**
+  - `AlleyExitTrigger` 已標記 Obsolete、A11 起不做任何事：B 從 GameScene 的物件上移除這個元件（目前還掛著）
 - **新手教學發光**：監聽 `TutorialManager.OnStepChanged`，讀 `MoveTarget`、`TutorialMonster`；`GameScene` 的 TutorialManager 欄位由 B 拖入
 - **故事事件**（B9、B11、B12）：B 建立 `StoryEventDirector`、`StoryEventData`（ScriptableObject）、`StoryTeleporter`（名稱、成員見 INTERFACES 第 17 節）
   - 監聽 `PhaseManager.OnStoryEventRequested(n)` → NPC 跑來求救；回報用 `PhaseManager.ReportEventAccepted／ReportHelpRefused／ReportEventCompleted(n)`
@@ -36,11 +43,11 @@
   - 傳送用 `PlayerController.TeleportTo(...)`，期間 `GameManager.SetTimerPaused("Teleport", true)`、`PlayerController.SetControlLock("Teleport", true)`
 - **BOSS 外觀與演出**（B13、B15–B17）：BOSS 的移動、縮放、傷害判定是 A 的；B 只做模型（子物件）、動畫、特效
   - 監聽 `PhaseManager.OnBossIntroRequested` 播登場 → `PhaseManager.NotifyBossIntroFinished()`（重新挑戰會再播一次）
-  - 監聽 `BossController.OnStateChanged`、`OnSizeLevelChanged`、`BossHealth.OnBossDamaged`、`BossAttack` 的事件、`PlayerEffects.OnSprayFired`
+  - 監聽 `BossController.OnStateChanged`、`OnSizeLevelChanged`、`BossHealth.OnBossDamaged`、`BossAttack` 的事件、`PlayerEffects.OnSprayFired(起點, 終點, 有沒有打中)`、口嚼錠清除特效聽 `ClearableSmoke.OnCleared(中心, 半徑)`（A13 起取代 `BossAttack.OnSmokeCleared`）
   - 監聽 `PhaseManager.OnEndingRequested` 播結局 → `PhaseManager.NotifyEndingFinished()`
   - 過場鏡頭用 `PlayerController.SetCameraOverride(點)`，不用再把 PlayerController 停用
 - 畫面效果讀 `ExposureSystem.VisualExposure`（不變）
-- 會被玩家按 E 互動的 NPC 實作 `IInteractable`；**不要自己讀 E 鍵或 Q 鍵**
+- 會被玩家按 E 互動的 NPC 實作 `IInteractable`；**不要自己讀 E 鍵或 Q 鍵**。需要額外條件（例如要面向 NPC）時，可以另外實作可選介面 `IInteractCondition`（A13，見 INTERFACES 第 2 節）
 - **INTERFACES 還沒寫的名稱不要自己發明**，不夠用請 B 去找 A
 - B7 要在 Unity 的 Project 視窗刪除：`EscortNPC`、`SafeZone`、`GuideLine`、`Assets/_Project/UI/InGameMenu.cs`（暫停選單改由 C 做）
 - 標記 `[Obsolete]` 的東西（黃色警告）**不要自己刪**，等各自的刪除任務

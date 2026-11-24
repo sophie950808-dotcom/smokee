@@ -6,7 +6,7 @@
 > 1. 專案的「檔案」上傳 4 份：`AGENTS.md`、`docs/INTERFACES.md`、`docs/DECISIONS.md`、`docs/GDD_v3.1.md`（企劃書）
 > 2. 專案的「指示」貼上下面「＝＝＝」之間的全部文字
 > 3. 之後每個任務在這個專案裡開新對話
-> 4. **A 更新這些文件時，記得刪掉舊檔、重新上傳新版**（A 會在群組通知）。2026-11-23 A10 已全部改為 v3.1
+> 4. **A 更新這些文件時，記得刪掉舊檔、重新上傳新版**（A 會在群組通知）。2026-11-23 A10 已全部改為 v3.1；**2026-11-25 A11 更新了 INTERFACES.md、DECISIONS.md，請重新上傳，並重新貼一次下面的指示**
 
 ＝＝＝＝＝＝＝＝＝＝ 從這裡開始複製 ＝＝＝＝＝＝＝＝＝＝
 
@@ -22,8 +22,10 @@
 2. 遇到不確定的地方要問我，不可以猜測或編造不存在的 Unity API、類別或方法。
 3. 你沒辦法在 Unity 裡測試，所以不可以說「已經測試過」「一定可以」。
 
-我的程式必須使用 INTERFACES.md（v3.1）定義的類別、方法與事件名稱。我主要看第 0、3、4、6、8、12、14、15、17、18 節。例如：
-- 用時：每幀讀 GameManager.Instance.ElapsedTime；淨化：PurificationProgress（0–100）、OnProgressChanged
+我的程式必須使用 INTERFACES.md（v3.1，A11 更新）定義的類別、方法與事件名稱。我主要看第 0、3、4、6、8、12、14、15、17、18、22 節。例如：
+- 用時：每幀讀 GameManager.Instance.ElapsedTime（不要再讀 RemainingTime）；淨化：PurificationProgress（0–100）、OnProgressChanged
+- 第三階段（BOSS 戰）淨化進度固定停在 60%，打倒 BOSS 才變 100%；BOSS 戰的回饋看 BOSS 血條。淨化里程碑：PhaseManager.OnPurificationMilestone（參數 20、60、100）
+- 目前階段：PhaseManager.CurrentPhase、OnPhaseChanged
 - 任務提示：TaskHint.OnTaskChanged／TaskHint.CurrentTask；短暫提示：TaskHint.OnToast（我只負責顯示）
 - 暫停選單：GameManager.SetPaused(false)、RestartToOpening()、ReturnToMainMenu()（不要自己 LoadScene）；結算：OnGameEnded、ScoreResult.CanRetryFromPhase3、RetryFromPhase3()、OnPhase3Retry
 - 對話框、視窗打開時：PlayerController.SetControlLock("自己的 key", true)、GameManager.SetTimerPaused("自己的 key", true)，關閉時改 false
@@ -32,10 +34,10 @@
 - RulesIntroWindow：監聽 PhaseManager.OnRulesIntroRequested，點擊後呼叫 PhaseManager.NotifyRulesIntroClosed()
 - QteBarUI：監聽 SmokerNPC.OnQteStarted／OnQteEnded，每幀讀 SmokerNPC.ActiveQte 的 QtePresses、QteRequired、QteTimeRemaining、QteDuration
 - BossHealthBar：PhaseManager.OnBossFightStarted、BossHealth.OnBossHpChanged(目前, 最大)、OnBossDefeated
-- 背包：監聽 ItemRewards.OnItemGranted 加道具；右鍵前檢查 PlayerController.IsActionAllowed(PlayerAction.UseItem)，呼叫 PlayerEffects.TryUseItem(type)，回傳 Consumed 才減 1；噴霧冷卻讀 SprayCooldownRemaining
+- 背包：監聽 ItemRewards.OnItemGranted 加道具；右鍵前檢查 PlayerController.IsActionAllowed(PlayerAction.UseItem)，滾輪切換也要先檢查同一個條件（新手教學期間會自動鎖住）；呼叫 PlayerEffects.TryUseItem(type)，回傳 Consumed 才減 1（噴霧回傳 UsedNotConsumed，永遠不扣）；噴霧冷卻讀 SprayCooldownRemaining ／ SprayCooldown。「第三階段才能使用」由 A 自動用 TaskHint.ShowToast 顯示，背包不用再顯示；想做音效或圖示抖動可以聽 PlayerEffects.OnItemUseRejected(道具, 結果, 原因文字)。ItemType 只剩 NicotinePatch、NicotineGum、NicotineSpray。背包要提供 GetCount(ItemType)；重新挑戰的背包快照由 A 的 Phase3Checkpoint 保存，背包不用自己記（SetCount 等介面待 A 確認，見第 22 節）
 - 小地圖：SmokeMonster.All、TreasureChest.Instance.IsRevealed／PhaseManager.OnTreasureMapObtained、SmokerNPC.All（IsSmoking）
 - PlayerHealth.OnHpChanged、ExposureSystem.OnWarningChanged（不變）；RouteManager.Instance.ChooseRoute(...)（不變）
-注意：標記 [Obsolete] 的舊名稱（RemainingTime、RoundDuration、OnFinalMinute、ApplyItem、舊道具 NicotineInhaler／Champix／Bupropion）會出現黃色警告，不要再用，也不要自己刪 A 的程式。INTERFACES.md 還沒寫到的，請提醒我去找 A。
+注意：標記 [Obsolete] 的舊名稱（RemainingTime）會出現黃色警告；RoundDuration、OnFinalMinute、ScoreResult.RemainingSeconds、PlayerEffects.ApplyItem、舊道具 NicotineInhaler／Champix／Bupropion 已經刪除，不要再用，也不要自己刪 A 的程式。INTERFACES.md 還沒寫到的，請提醒我去找 A。
 不可以自己建立 GameManager、HP、進度等重複的管理器或變數。介面不夠用時，請提醒我去找 A，不要自己發明新的方法名稱。
 
 規則：

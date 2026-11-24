@@ -8,9 +8,9 @@ using UnityEditor.SceneManagement;
 
 /// <summary>
 /// 管理開場路線選擇（路線 A 接受香菸／路線 B 拒絕香菸）。
-/// 用 RouteManager.Instance 取得。規格見 docs/INTERFACES.md 第 4 節。
-/// 流程：場景開始停用玩家控制 → ChooseRoute → NotifyOpeningFinished
-/// → 路線 A 等待後重新載入場景；路線 B 恢復控制，走出死巷（NotifyPlayerLeftAlley）才開始倒數。
+/// 用 RouteManager.Instance 取得。規格見 docs/INTERFACES.md 第 7 節。
+/// 流程：場景開始停用玩家控制 → ChooseRoute → NotifyOpeningFinished（OnOpeningFinished）
+/// → 路線 A 等待後重新載入場景；路線 B（B 在車庫門開好時通知）恢復控制，PhaseManager 收到事件後開始新手教學。
 /// </summary>
 public class RouteManager : MonoBehaviour
 {
@@ -27,7 +27,7 @@ public class RouteManager : MonoBehaviour
 
     private OpeningRoute _chosenRoute = OpeningRoute.None;
     private bool _openingFinished;
-    private bool _leftAlley;
+    private bool _warnedLeftAlley;
     private bool _isReloading;
 
     /// <summary>玩家選擇的路線。</summary>
@@ -147,37 +147,26 @@ public class RouteManager : MonoBehaviour
             {
                 _playerController.SetControlEnabled(true);
             }
+            // 新手教學由 PhaseManager 監聽 OnOpeningFinished 後開始
+            if (PhaseManager.Instance == null)
+            {
+                Debug.LogWarning("[RouteManager] 場景裡沒有 PhaseManager，開場結束後不會開始新手教學。", this);
+            }
         }
     }
 
     /// <summary>
-    /// 【即將移除】玩家走出死巷（死巷出口的 AlleyExitTrigger 呼叫）→ 開始倒數。
-    /// 只有「選了 RefuseSmoke 且開場已結束」時有效，而且只會觸發一次。
-    /// v3.1 改成：路線 B 開場結束 → PhaseManager 開始新手教學。
+    /// 【即將移除】舊流程：玩家走出死巷才開始倒數。v3.1 改成路線 B 開場結束 → PhaseManager 開始新手教學，
+    /// 這個方法已經不做任何事（GameScene 還掛著 AlleyExitTrigger，B 移除後 A 在 I3 刪除）。
     /// </summary>
-    [Obsolete("v3.1 改由 PhaseManager 在開場結束時開始新手教學。A11 刪除。")]
+    [Obsolete("v3.1 不再用走出死巷開始，這個方法沒有作用。B 從場景移除 AlleyExitTrigger 後，A 在 I3 刪除。")]
     public void NotifyPlayerLeftAlley()
     {
-        if (_leftAlley || _chosenRoute != OpeningRoute.RefuseSmoke || !_openingFinished)
+        if (!_warnedLeftAlley)
         {
-            return;
+            _warnedLeftAlley = true;
+            Debug.Log("[RouteManager] NotifyPlayerLeftAlley 已經沒有作用（v3.1 改由 PhaseManager 開始新手教學）。", this);
         }
-
-        GameManager gameManager = GameManager.Instance;
-        if (gameManager == null)
-        {
-            Debug.LogWarning("[RouteManager] 找不到 GameManager，無法開始倒數。", this);
-            return;
-        }
-        // 暫停中（Paused）不算數，避免 StartRound 失敗卻被記成已觸發
-        if (gameManager.State != GameState.Opening)
-        {
-            return;
-        }
-
-        _leftAlley = true;
-        Debug.Log("[RouteManager] 玩家走出死巷，開始倒數。", this);
-        gameManager.StartRound();
     }
 
     private IEnumerator ReloadSceneAfterDelay()

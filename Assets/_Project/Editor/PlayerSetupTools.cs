@@ -12,6 +12,7 @@ using UnityEngine.SceneManagement;
 /// 4. A5：在 TestScene_A 放 GameManager（開發者模式、自動開始倒數）與開發者工具
 /// 5. A9：在 TestScene_A 放 RouteManager 與死巷出口測試方塊
 /// 6. A6：Player Prefab 補上 ExposureSystem、地板擴大到 200 x 200、放 2 個假煙霧來源
+/// 7. A13：Player Prefab 補上 PlayerEffects，放假 BOSS、假菸圈、假吸菸 NPC、一般互動物件
 /// </summary>
 public static class PlayerSetupTools
 {
@@ -23,6 +24,7 @@ public static class PlayerSetupTools
     private const string A4RootName = "A4_TestObjects";
     private const string A9ExitName = "A9_AlleyExit";
     private const string A6RootName = "A6_SmokeSources";
+    private const string A13RootName = "A13_ItemTestObjects";
     private const float FloorSize = 200f;
     private static readonly string[] FloorAndOuterWallNames = { "Floor", "Wall_North", "Wall_South", "Wall_East", "Wall_West" };
 
@@ -59,7 +61,7 @@ public static class PlayerSetupTools
 
         SerializedObject serializedManager = new SerializedObject(gameManager);
         serializedManager.FindProperty("_devMode").boolValue = true;
-        serializedManager.FindProperty("_autoStartRound").boolValue = true;
+        serializedManager.FindProperty("_devAutoStart").enumValueIndex = (int)GameManager.DevAutoStartMode.Tutorial;
         serializedManager.ApplyModifiedPropertiesWithoutUndo();
 
         EditorSceneManager.MarkSceneDirty(scene);
@@ -67,13 +69,14 @@ public static class PlayerSetupTools
         Selection.activeGameObject = managerObject;
 
         EditorUtility.DisplayDialog("完成",
-            "GameManager 已放進 TestScene_A 並存檔（devMode、autoStartRound 已勾選）。\n按 Play 後左上角會出現開發者面板。",
+            "GameManager 已放進 TestScene_A 並存檔（devMode 已勾選、devAutoStart = Tutorial）。\n" +
+            "按 Play 後左上角會出現開發者面板。\n記得再執行「A - A11 設定 TestScene_A」補上 PhaseManager。",
             "好");
     }
 
     /// <summary>
-    /// 選單：A9。在 TestScene_A 放 RouteManager，並在窄走廊盡頭放一個綠色的死巷出口方塊（Trigger＋AlleyExitTrigger）。
-    /// 不會動到 GameManager（autoStartRound 保持勾選，用來確認有 RouteManager 時會被忽略）。
+    /// 選單：A9。在 TestScene_A 放 RouteManager（會移除舊的 A9 死巷出口方塊；A11 起不再使用 AlleyExitTrigger）。
+    /// 不會動到 GameManager（有 RouteManager 時 devAutoStart 會被忽略，開場用 F6、F7）。
     /// </summary>
     [MenuItem("Tools/Smokee/A - 放置 A9 RouteManager 與死巷出口")]
     public static void BuildA9RouteTestMenu()
@@ -103,19 +106,103 @@ public static class PlayerSetupTools
         GameObject routeObject = new GameObject("RouteManager");
         routeObject.AddComponent<RouteManager>();
 
-        // 窄走廊在 x = 5～7.5、z = -1～11，出口放在走廊北端
-        Material exitMaterial = GetOrCreateMaterial("TestA_AlleyExit", new Color(0.3f, 1f, 0.4f));
-        GameObject exit = CreateBlock(A9ExitName, null, new Vector3(6.25f, 1.5f, 11.5f), new Vector3(2f, 3f, 0.3f), exitMaterial);
-        exit.GetComponent<Collider>().isTrigger = true;
-        exit.AddComponent<AlleyExitTrigger>();
+        // （A11）v3.1 不再用「走出死巷」開始，所以不再放死巷出口方塊
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
         Selection.activeGameObject = routeObject;
 
         EditorUtility.DisplayDialog("完成",
-            "RouteManager 與死巷出口（綠色方塊，在窄走廊北端）已放進 TestScene_A 並存檔。\n" +
+            "RouteManager 已放進 TestScene_A 並存檔（舊的死巷出口方塊已移除）。\n" +
             "按 Play 後用 F5／F6 選路線、F7 結束開場。",
+            "好");
+    }
+
+    /// <summary>
+    /// 選單：A11。在 TestScene_A 的 GameManager 物件上補上 PhaseManager、TutorialManager（已經有就不重複加），
+    /// 並確認 devMode 勾選、DevOverlay、DevHotkeys 都在；同時移除舊的 A9 死巷出口方塊。
+    /// 需要先執行 A5（GameManager）與 A9（RouteManager）。
+    /// </summary>
+    [MenuItem("Tools/Smokee/A - A11 設定 TestScene_A（PhaseManager）")]
+    public static void BuildA11PhaseTestMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+
+        GameManager gameManager = null;
+        bool hasRouteManager = false;
+        bool removedAlleyExit = false;
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.name == A9ExitName)
+            {
+                Object.DestroyImmediate(rootObject);
+                removedAlleyExit = true;
+                continue;
+            }
+            if (gameManager == null)
+            {
+                gameManager = rootObject.GetComponentInChildren<GameManager>(true);
+            }
+            if (rootObject.GetComponentInChildren<RouteManager>(true) != null)
+            {
+                hasRouteManager = true;
+            }
+        }
+
+        if (gameManager == null)
+        {
+            EditorUtility.DisplayDialog("找不到 GameManager",
+                "TestScene_A 裡沒有 GameManager，請先執行「A - 放置 A5 GameManager（開發者模式）」。", "好");
+            return;
+        }
+
+        GameObject managerObject = gameManager.gameObject;
+        string added = "";
+        if (managerObject.GetComponent<PhaseManager>() == null)
+        {
+            managerObject.AddComponent<PhaseManager>();
+            added += "PhaseManager ";
+        }
+        if (managerObject.GetComponent<TutorialManager>() == null)
+        {
+            managerObject.AddComponent<TutorialManager>();
+            added += "TutorialManager ";
+        }
+        if (managerObject.GetComponent<DevOverlay>() == null)
+        {
+            managerObject.AddComponent<DevOverlay>();
+            added += "DevOverlay ";
+        }
+        if (managerObject.GetComponent<DevHotkeys>() == null)
+        {
+            managerObject.AddComponent<DevHotkeys>();
+            added += "DevHotkeys ";
+        }
+
+        SerializedObject serializedManager = new SerializedObject(gameManager);
+        serializedManager.FindProperty("_devMode").boolValue = true;
+        serializedManager.ApplyModifiedPropertiesWithoutUndo();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+        Selection.activeGameObject = managerObject;
+
+        EditorUtility.DisplayDialog("完成",
+            "TestScene_A 已存檔。" + (added.Length > 0 ? "\n新增：" + added : "\n元件都已經在了，沒有新增。") +
+            (removedAlleyExit ? "\n已移除舊的死巷出口方塊。" : "") +
+            (hasRouteManager ? "" : "\n\n注意：場景裡沒有 RouteManager，請執行 A9，或在 GameManager 設定 devAutoStart。") +
+            "\n\n按 Play 後：F6 拒絕香菸 → F7 開場結束 → F1 完成教學 → 依左上角面板的按鍵說明往下測。",
             "好");
     }
 
@@ -252,6 +339,162 @@ public static class PlayerSetupTools
         interactable.AddComponent<TestInteractable>();
     }
 
+    /// <summary>
+    /// 選單：A13。在 Player Prefab 補上 PlayerEffects（其他設定保留），
+    /// 並在 TestScene_A 玩家出生點的後方（南邊）放道具與互動測試物件：
+    /// 假 BOSS、兩個假菸圈（一個在出生點 15 公尺內、一個在外）、假吸菸 NPC、一般互動物件。
+    /// 重複執行會先刪掉上次放的 A13 物件再重放。
+    /// </summary>
+    [MenuItem("Tools/Smokee/A - A13 放置道具與互動測試物件")]
+    public static void BuildA13ItemTestMenu()
+    {
+        if (AssetDatabase.LoadAssetAtPath<SceneAsset>(ScenePath) == null)
+        {
+            EditorUtility.DisplayDialog("找不到場景", "找不到 " + ScenePath + "，請確認場景存在。", "好");
+            return;
+        }
+
+        if (!EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo())
+        {
+            return;
+        }
+
+        // 1. Player Prefab 補上 PlayerEffects
+        bool prefabUpdated = AddPlayerEffectsToExistingPrefab();
+
+        // 2. 開啟 TestScene_A，移除上次放的 A13 物件，重新放
+        Scene scene = EditorSceneManager.OpenScene(ScenePath, OpenSceneMode.Single);
+        bool hasPlayer = false;
+        bool hasPhaseManager = false;
+        foreach (GameObject rootObject in scene.GetRootGameObjects())
+        {
+            if (rootObject.name == A13RootName)
+            {
+                Object.DestroyImmediate(rootObject);
+                continue;
+            }
+            if (rootObject.GetComponentInChildren<PlayerController>(true) != null)
+            {
+                hasPlayer = true;
+            }
+            if (rootObject.GetComponentInChildren<PhaseManager>(true) != null)
+            {
+                hasPhaseManager = true;
+            }
+        }
+
+        BuildA13TestObjects();
+
+        EditorSceneManager.MarkSceneDirty(scene);
+        EditorSceneManager.SaveScene(scene);
+
+        string message = "A13 測試物件已放好並存檔（在玩家出生點後方，按 Play 後轉身就看得到）。\n" +
+                         (prefabUpdated ? "Player Prefab 已補上 PlayerEffects。\n" : "") +
+                         "\n深灰大方塊 = 假 BOSS（用噴霧打）\n" +
+                         "灰色小球 = 假菸圈（Inside 在出生點 15 公尺內、Outside 在外）\n" +
+                         "橘色膠囊 = 假吸菸 NPC（面向它、2 公尺內按 E，再連打 E）\n" +
+                         "綠色方塊 = 一般互動物件";
+        if (!hasPlayer)
+        {
+            message += "\n\n注意：場景裡沒有 Player。請先執行「A - 建立 TestScene_A 測試環境」。";
+        }
+        if (!hasPhaseManager)
+        {
+            message += "\n\n注意：場景裡沒有 PhaseManager，按鍵 2 無法進入第三階段。請先執行「A - A11 設定 TestScene_A」。";
+        }
+
+        EditorUtility.DisplayDialog("完成", message, "好");
+    }
+
+    /// <summary>打開現有的 Player Prefab，沒有 PlayerEffects 就補上。有改動時回傳 true。</summary>
+    private static bool AddPlayerEffectsToExistingPrefab()
+    {
+        if (AssetDatabase.LoadAssetAtPath<GameObject>(PrefabPath) == null)
+        {
+            Debug.LogWarning("PlayerSetupTools：找不到 Player Prefab，請先執行「A - 建立 Player Prefab」。");
+            return false;
+        }
+
+        GameObject contents = PrefabUtility.LoadPrefabContents(PrefabPath);
+        try
+        {
+            if (contents.GetComponent<PlayerController>() == null)
+            {
+                Debug.LogWarning("PlayerSetupTools：Player Prefab 上沒有 PlayerController，無法加 PlayerEffects。");
+                return false;
+            }
+
+            if (contents.GetComponent<PlayerEffects>() != null)
+            {
+                return false;
+            }
+
+            contents.AddComponent<PlayerEffects>();
+            PrefabUtility.SaveAsPrefabAsset(contents, PrefabPath);
+            return true;
+        }
+        finally
+        {
+            PrefabUtility.UnloadPrefabContents(contents);
+        }
+    }
+
+    /// <summary>
+    /// 放 A13 測試物件（玩家出生在 (0, 0, -10)，面向 +Z；這些物件放在後方 z &lt; -10）：
+    /// 假 BOSS (0, 3, -32)：距離出生點約 22 公尺（噴霧最遠 30）。
+    /// 假菸圈 Inside (6, 1.5, -18)：距離出生點約 10 公尺；Outside (-20, 1.5, -22)：約 23 公尺。
+    /// 假吸菸 NPC (3, 1, -15)、一般互動物件 (-3, 0.5, -15)。
+    /// </summary>
+    private static void BuildA13TestObjects()
+    {
+        EnsureFolder(MaterialFolder);
+        Material bossMaterial = GetOrCreateMaterial("TestA_FakeBoss", new Color(0.35f, 0.35f, 0.35f));
+        Material ringMaterial = GetOrCreateMaterial("TestA_FakeSmokeRing", new Color(0.75f, 0.75f, 0.75f));
+        Material smokerMaterial = GetOrCreateMaterial("TestA_FakeSmoker", new Color(1f, 0.55f, 0.15f));
+        Material interactMaterial = GetOrCreateMaterial("TestA_Interactable", new Color(0.2f, 0.8f, 0.3f));
+
+        Transform root = new GameObject(A13RootName).transform;
+
+        // 假 BOSS：方塊自帶 BoxCollider，噴霧打得到
+        GameObject boss = CreateBlock("FakeBoss", root, new Vector3(0f, 3f, -32f), new Vector3(4f, 6f, 4f), bossMaterial);
+        boss.AddComponent<FakeBoss>();
+
+        // 假菸圈：拿掉碰撞體（不擋玩家、不擋噴霧），只用位置判斷
+        CreateFakeSmokeRing("FakeSmokeRing_Inside", root, new Vector3(6f, 1.5f, -18f), ringMaterial);
+        CreateFakeSmokeRing("FakeSmokeRing_Outside", root, new Vector3(-20f, 1.5f, -22f), ringMaterial);
+
+        // 假吸菸 NPC：膠囊自帶 CapsuleCollider，PlayerInteractor 找得到
+        GameObject smoker = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+        smoker.name = "FakeSmokerNPC";
+        smoker.transform.SetParent(root, false);
+        smoker.transform.localPosition = new Vector3(3f, 1f, -15f);
+        smoker.GetComponent<Renderer>().sharedMaterial = smokerMaterial;
+        smoker.AddComponent<FakeSmokerNPC>();
+
+        // 一般互動物件：確認原本的 E 互動還正常
+        CreateInteractable("Interactable_A13", root, new Vector3(-3f, 0.5f, -15f), interactMaterial);
+
+        // 暫時的互動提示：場景裡已經有（A4 放的）就不重複放
+        if (Object.FindFirstObjectByType<DebugInteractPrompt>(FindObjectsInactive.Include) == null)
+        {
+            GameObject prompt = new GameObject("DebugInteractPrompt_A13");
+            prompt.transform.SetParent(root, false);
+            prompt.AddComponent<DebugInteractPrompt>();
+        }
+    }
+
+    private static void CreateFakeSmokeRing(string name, Transform parent, Vector3 position, Material material)
+    {
+        GameObject ring = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+        ring.name = name;
+        ring.transform.SetParent(parent, false);
+        ring.transform.localPosition = position;
+        ring.transform.localScale = Vector3.one * 1.2f;
+        ring.GetComponent<Renderer>().sharedMaterial = material;
+        Object.DestroyImmediate(ring.GetComponent<Collider>());
+        ring.AddComponent<FakeSmokeRing>();
+    }
+
     /// <summary>選單：建立（或覆蓋）Player Prefab。</summary>
     [MenuItem("Tools/Smokee/A - 建立 Player Prefab")]
     public static void CreatePlayerPrefabMenu()
@@ -347,6 +590,7 @@ public static class PlayerSetupTools
         root.AddComponent<TargetMarker>();
         root.AddComponent<ExposureSystem>();
         root.AddComponent<PlayerHealth>();
+        root.AddComponent<PlayerEffects>();
 
         // 身體：膠囊外型（拿掉膠囊自帶的碰撞體，碰撞交給 CharacterController）
         GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);

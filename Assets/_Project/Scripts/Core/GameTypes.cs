@@ -54,20 +54,17 @@ public enum MonsterGroup { Tutorial, Phase1, EventGap, StoryEvent }
 public enum PlayerAction { Move, Look, Jump, Run, ViewToggle, Attack, Interact, UseItem }
 
 /// <summary>
-/// 衛教道具種類。順序不可改（避免已存的資料跑掉）。
-/// v3.1 只用 NicotinePatch（貼片）、NicotineGum（口嚼錠）、NicotineSpray（戒菸噴霧）。
+/// 衛教道具種類：NicotinePatch（貼片）、NicotineGum（口嚼錠）、NicotineSpray（戒菸噴霧）。
+/// 編號寫死、不可改（A13 刪除舊道具時保留原本的編號，避免已存的資料對錯道具）。
 /// </summary>
 public enum ItemType
 {
-    NicotineGum,
-    NicotinePatch,
-    [Obsolete("v3.1 已刪除尼古丁吸入劑。C7 刪除舊道具資料後，A 在 I3 刪除。")]
-    NicotineInhaler,
-    NicotineSpray,
-    [Obsolete("v3.1 已刪除戒必適。C7 刪除舊道具資料後，A 在 I3 刪除。")]
-    Champix,
-    [Obsolete("v3.1 已刪除 Bupropion。C7 刪除舊道具資料後，A 在 I3 刪除。")]
-    Bupropion
+    /// <summary>尼古丁口嚼錠。</summary>
+    NicotineGum = 0,
+    /// <summary>尼古丁貼片。</summary>
+    NicotinePatch = 1,
+    /// <summary>尼古丁戒菸噴霧。（2、4、5 是已刪除的舊道具，不要再用）</summary>
+    NicotineSpray = 3
 }
 
 /// <summary>
@@ -112,9 +109,6 @@ public struct ScoreResult
     public float RemainingHp;
     /// <summary>用時（秒）。v3.1 起代表「用時」，名稱不變。</summary>
     public float ClearTimeSeconds;
-    /// <summary>【即將移除】倒數已取消，固定為 0。</summary>
-    [Obsolete("v3.1 取消倒數，固定為 0。A11 刪除。")]
-    public float RemainingSeconds;
     /// <summary>待在煙霧範圍內的總秒數（「吸入二手菸量」）。</summary>
     public float SmokeSeconds;
     /// <summary>血量分 0–100。</summary>

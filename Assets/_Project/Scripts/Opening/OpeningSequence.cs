@@ -109,21 +109,9 @@ public class OpeningSequence : MonoBehaviour
 
     private void OnGUI()
     {
-        // 1. 車庫新手教學提示文字
-        if (!hasTriggeredExit && RouteManager.Instance != null && RouteManager.Instance.ChosenRoute != OpeningRoute.None)
-        {
-            GUIStyle guideStyle = new GUIStyle(GUI.skin.box);
-            guideStyle.fontSize = 18;
-            guideStyle.alignment = TextAnchor.MiddleCenter;
-            guideStyle.normal.textColor = Color.yellow;
+        // [A11 整合] 原本的「新手引導」文字框已移除：教學提示改由 TutorialManager 寫進 TaskHint，C 的 HUD 顯示
 
-            int gWidth = 620;
-            int gHeight = 58;
-            float gx = (Screen.width - gWidth) / 2f;
-            GUI.Box(new Rect(gx, 115, gWidth, gHeight), "【新手引導】靠近吸菸者會吸入二手菸，視野會變暗！\n請操控角色走出車庫展開街道任務！", guideStyle);
-        }
-
-        // 2. 路線 A：畫面轉黑 + 字幕提示（隨機路人台詞與教訓說明）
+        // 路線 A：畫面轉黑 + 字幕提示（隨機路人台詞與教訓說明）
         if (blackFadeAlpha > 0f)
         {
             Color oldColor = GUI.color;
@@ -169,6 +157,13 @@ public class OpeningSequence : MonoBehaviour
         if (controller != null) controller.SetControlEnabled(true);
 
         Debug.Log("[開場演出] 車庫門開啟，請操控角色走出車庫！");
+
+        // [A11 整合] 拒絕路線：車庫門開好就通知開場結束 → PhaseManager 開始新手教學
+        // （原本等玩家走到車庫出口才通知；接受路線不變，仍在走到出口時開始路人演出）
+        if (RouteManager.Instance != null && RouteManager.Instance.ChosenRoute == OpeningRoute.RefuseSmoke)
+        {
+            StartCoroutine(RouteB_EnterStreetRoutine());
+        }
     }
 
     /// <summary>
@@ -190,10 +185,7 @@ public class OpeningSequence : MonoBehaviour
                 ? RouteA_PunchAndRestartRoutine(selected)
                 : RouteA_PunishAndDieRoutine(selected));
         }
-        else if (route == OpeningRoute.RefuseSmoke)
-        {
-            StartCoroutine(RouteB_EnterStreetRoutine());
-        }
+        // [A11 整合] 拒絕路線在車庫門開好時就已經通知開場結束（見 OpenDoorSequence），走到出口不用再做事
     }
 
     // 企畫書新版：隨機路人 咳嗽 → 台詞 → 動手 → 倒地 → 回到選擇
@@ -377,7 +369,7 @@ public class OpeningSequence : MonoBehaviour
 
     private IEnumerator RouteB_EnterStreetRoutine()
     {
-        Debug.Log("[路線 B] 成功走出倉庫！玩家進入主要街道！");
+        Debug.Log("[路線 B] 車庫門已開，開場結束，進入新手教學。");
         if (passerby != null)
         {
             passerby.gameObject.SetActive(true);

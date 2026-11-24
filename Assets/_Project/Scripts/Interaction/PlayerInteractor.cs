@@ -6,6 +6,10 @@ using UnityEngine.InputSystem;
 /// 玩家互動：每幀找出範圍內最近、可以互動、而且沒被牆擋住的 IInteractable，按 E 時呼叫它的 Interact()。
 /// 掛在 Player（和 PlayerController 同一個物件）上。
 /// 整個專案只有這支腳本會讀 E 鍵。
+/// - 目標另外實作 IInteractCondition 時，還要通過它自己的條件（例如吸菸 NPC 的前方 90 度、2 公尺內）。
+/// - 目標實作 IQteInteractable、按 E 後開始 QTE 時，進入 QTE 模式：鎖定這個目標、鎖住移動與跳躍，
+///   之後每次按 E 都轉給它的 RegisterQtePress()；QTE 結束後恢復正常。
+/// - 不能互動的時機：PlayerController 不允許 Interact（控制鎖、新手教學、暫停）、「暫停計時」中（對話、過場）、遊戲結束後。
 /// </summary>
 [RequireComponent(typeof(PlayerController))]
 public class PlayerInteractor : MonoBehaviour
@@ -34,16 +38,25 @@ public class PlayerInteractor : MonoBehaviour
     public event Action<IInteractable> OnInteracted;
 
     /// <summary>
-    /// 是否正在 QTE 連打（捏熄吸菸 NPC 的菸）。這段期間 E 鍵全部交給 SmokerNPC.ActiveQte，不會找其他目標。
-    /// 【A10 空殼】A16 完成。
+    /// 是否正在 QTE 連打（捏熄吸菸 NPC 的菸）。這段期間 E 鍵全部交給 QTE 目標，不會找其他目標。
     /// </summary>
-    public bool IsInQte => false;
+    public bool IsInQte => _qteTarget != null;
+
+    /// <summary>正在 QTE 的目標；沒有時為 null。</summary>
+    public IQteInteractable CurrentQteTarget => _qteTarget;
+
+    /// <summary>進入／離開 QTE 模式時觸發。參數：true = 開始、false = 結束。UI 可以用來切換提示。</summary>
+    public event Action<bool> OnQteModeChanged;
+
+    // QTE 期間鎖住移動用的 key
+    private const string QteLockKey = "Qte";
 
     // 物件的碰撞體可能比 InteractPoint 遠一點，搜尋範圍多抓一些，最後再用 InteractPoint 的距離篩選
     private const float SearchPadding = 1f;
 
     private PlayerController _playerController;
     private IInteractable _currentTarget;
+    private IQteInteractable _qteTarget;
     private readonly Collider[] _overlapResults = new Collider[64];
     private readonly RaycastHit[] _lineHits = new RaycastHit[16];
 
@@ -54,31 +67,106 @@ public class PlayerInteractor : MonoBehaviour
 
     private void Update()
     {
-        // 控制被停用（例如問答 UI 開著）或暫停時，沒有目標，提示也會消失
-        // 新手教學期間會用 SetActionLocked 鎖住互動
-        IInteractable newTarget = _playerController.IsActionAllowed(PlayerAction.Interact) ? FindBestTarget() : null;
+        bool allowed = _playerController.IsActionAllowed(PlayerAction.Interact) && !IsBlockedByGame();
+        Keyboard keyboard = Keyboard.current;
+        bool ePressed = keyboard != null && keyboard.eKey.wasPressedThisFrame;
+
+        // QTE 模式：E 鍵全部轉給 QTE 目標，不找其他目標
+        if (_qteTarget != null)
+        {
+            if (IsQteTargetGone(_qteTarget) || !_qteTarget.IsQteActive)
+            {
+                ExitQte();
+                // 往下走一般流程，這一幀就恢復找目標（這一下 E 不會被拿去互動別人）
+                ePressed = false;
+            }
+            else
+            {
+                SetTarget(_qteTarget);
+                if (allowed && ePressed)
+                {
+                    _qteTarget.RegisterQtePress();
+                }
+                return;
+            }
+        }
+
+        // 控制被停用、教學鎖住互動、對話、過場、暫停、遊戲結束時，沒有目標，提示也會消失
+        IInteractable newTarget = allowed ? FindBestTarget() : null;
         SetTarget(newTarget);
 
-        if (_currentTarget == null)
+        if (_currentTarget == null || !ePressed)
         {
             return;
         }
 
-        Keyboard keyboard = Keyboard.current;
-        if (keyboard != null && keyboard.eKey.wasPressedThisFrame)
-        {
-            IInteractable interacted = _currentTarget;
-            interacted.Interact();
-            OnInteracted?.Invoke(interacted);
+        IInteractable interacted = _currentTarget;
+        interacted.Interact();
+        OnInteracted?.Invoke(interacted);
 
-            // 互動後物件可能變成不能互動或被刪除，馬上重新找，提示不會多停一幀
-            SetTarget(FindBestTarget());
+        // 按 E 後開始 QTE → 進入 QTE 模式（第一下由目標自己在 Interact 裡算）
+        if (interacted is IQteInteractable qte && !IsQteTargetGone(qte) && qte.IsQteActive)
+        {
+            EnterQte(qte);
+            return;
         }
+
+        // 互動後物件可能變成不能互動或被刪除，馬上重新找，提示不會多停一幀
+        SetTarget(FindBestTarget());
     }
 
     private void OnDisable()
     {
+        ExitQte();
         SetTarget(null);
+    }
+
+    /// <summary>「暫停計時」中（對話、過場、視窗）或遊戲結束後不能互動。測試場景沒有 GameManager 時不擋。</summary>
+    private static bool IsBlockedByGame()
+    {
+        GameManager gameManager = GameManager.Instance;
+        return gameManager != null && (gameManager.IsTimerPaused || gameManager.State == GameState.Ended);
+    }
+
+    /// <summary>QTE 目標被刪除或停用了沒有。</summary>
+    private static bool IsQteTargetGone(IQteInteractable target)
+    {
+        Component component = target as Component;
+        if (component == null)
+        {
+            // 被 Destroy 的 Unity 物件也會走到這裡（Unity 的 == null 判斷）
+            return true;
+        }
+        if (component is Behaviour behaviour)
+        {
+            return !behaviour.isActiveAndEnabled;
+        }
+        return !component.gameObject.activeInHierarchy;
+    }
+
+    private void EnterQte(IQteInteractable target)
+    {
+        _qteTarget = target;
+        _playerController.SetActionLocked(PlayerAction.Move, QteLockKey, true);
+        _playerController.SetActionLocked(PlayerAction.Jump, QteLockKey, true);
+        SetTarget(target);
+        OnQteModeChanged?.Invoke(true);
+    }
+
+    private void ExitQte()
+    {
+        if (_qteTarget == null)
+        {
+            return;
+        }
+
+        _qteTarget = null;
+        if (_playerController != null)
+        {
+            _playerController.SetActionLocked(PlayerAction.Move, QteLockKey, false);
+            _playerController.SetActionLocked(PlayerAction.Jump, QteLockKey, false);
+        }
+        OnQteModeChanged?.Invoke(false);
     }
 
     private void SetTarget(IInteractable target)
@@ -92,7 +180,7 @@ public class PlayerInteractor : MonoBehaviour
         OnFocusChanged?.Invoke(target);
     }
 
-    /// <summary>找出範圍內最近、CanInteract 為 true、沒被牆擋住的 IInteractable。</summary>
+    /// <summary>找出範圍內最近、CanInteract 為 true、通過自己的條件（IInteractCondition）、沒被牆擋住的 IInteractable。</summary>
     private IInteractable FindBestTarget()
     {
         Vector3 origin = InteractOrigin;
@@ -112,6 +200,12 @@ public class PlayerInteractor : MonoBehaviour
 
             IInteractable interactable = candidate.GetComponentInParent<IInteractable>();
             if (interactable == null || !interactable.CanInteract)
+            {
+                continue;
+            }
+
+            // 目標自己的額外條件（例如吸菸 NPC：面向它、前方 90 度、2 公尺內）
+            if (interactable is IInteractCondition condition && !condition.CanInteractFrom(transform))
             {
                 continue;
             }

@@ -22,7 +22,6 @@ public static class GameSceneSetupTools
     private const string TestSceneCPath = "Assets/_Project/Scenes/TestScene_C.unity";
     private const string ResultCanvasName = "ResultCanvas";
     private const string UiCanvasName = "GameUI_Canvas";
-    private const string AlleyExitName = "AlleyExit_Trigger";
 
     /// <summary>只設定 GameScene 接受吸菸的出口演出，保留現有玩家、管理器與 UI。</summary>
     [MenuItem("Tools/Smokee/接受吸菸 - 設定出口揮拳演出")]
@@ -171,8 +170,7 @@ public static class GameSceneSetupTools
             report.Add("放入 EventSystem（新版 Input System）");
         }
 
-        // 6. 死巷出口：和 GarageExit_Trigger 共用同一個觸發區
-        SetupAlleyExit(scene, report, warnings);
+        // 6. （A11）v3.1 不再使用死巷出口 AlleyExitTrigger，這裡不再自動加上
 
         EditorSceneManager.MarkSceneDirty(scene);
         EditorSceneManager.SaveScene(scene);
@@ -411,37 +409,6 @@ public static class GameSceneSetupTools
             warnings.Add("找不到 B 的臨時玩家，Player 放在 (0, 0, 0)，請自己拖到開場位置。");
         }
         return player.transform;
-    }
-
-    /// <summary>場景沒有 AlleyExitTrigger 時，在 GarageExit_Trigger 物件上加 AlleyExitTrigger（找不到才另外建立一個）。</summary>
-    private static void SetupAlleyExit(Scene scene, List<string> report, List<string> warnings)
-    {
-        if (FindInScene<AlleyExitTrigger>(scene).Count > 0)
-        {
-            return;
-        }
-
-        // 死巷出口和車庫出口共用同一個觸發區：在 B 的 GarageExit_Trigger 物件上加 AlleyExitTrigger
-        List<GarageExitTrigger> garageExits = FindInScene<GarageExitTrigger>(scene);
-        if (garageExits.Count > 0)
-        {
-            GameObject garage = garageExits[0].gameObject;
-            garage.AddComponent<AlleyExitTrigger>();
-            report.Add("在 " + garage.name + " 加上 AlleyExitTrigger（死巷出口和車庫出口共用同一個觸發區）");
-            Collider garageCollider = garage.GetComponent<Collider>();
-            if (garageCollider == null || !garageCollider.isTrigger)
-            {
-                warnings.Add(garage.name + " 沒有勾選 Is Trigger 的 Collider，玩家穿過時不會觸發，請檢查。");
-            }
-            return;
-        }
-
-        GameObject exit = new GameObject(AlleyExitName);
-        BoxCollider exitCollider = exit.AddComponent<BoxCollider>();
-        exitCollider.isTrigger = true;
-        exit.AddComponent<AlleyExitTrigger>();
-        report.Add("建立死巷出口 " + AlleyExitName);
-        warnings.Add("找不到 GarageExit_Trigger，死巷出口放在 (0, 0, 0)，請拖到正確位置。");
     }
 
     /// <summary>找場景裡名為 GameUI_Canvas 的 Canvas，沒有就建立一個（螢幕疊加、依 1920x1080 縮放）。</summary>

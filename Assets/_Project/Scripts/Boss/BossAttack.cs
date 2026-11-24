@@ -2,7 +2,8 @@ using System;
 using UnityEngine;
 
 /// <summary>
-/// BOSS 的攻擊：地面吐小菸圈、天上吐菸炮（落地留下煙霧區）、Final 物理攻擊；口嚼錠清除菸圈與煙霧區。
+/// BOSS 的攻擊：地面吐小菸圈、天上吐菸炮（落地留下煙霧區）、Final 物理攻擊。
+/// 口嚼錠清除菸圈與煙霧區改由 ClearableSmoke（A13）負責。
 /// 掛在 BOSS 根物件。菸圈、菸炮、煙霧區的小腳本與 Prefab 在 A14／A16 建立；B 可以換 Prefab 的外觀。
 /// 規格見 docs/INTERFACES.md 第 14 節。
 /// 【A10 空殼】名稱、參數、Inspector 數值已定案；菸圈在 A14、菸炮與物理攻擊在 A16 完成。
@@ -60,18 +61,16 @@ public class BossAttack : MonoBehaviour
 
     /// <summary>物理攻擊揮下時觸發。參數：有沒有打中玩家。</summary>
     public event Action<bool> OnMeleeSwing;
-
-    /// <summary>口嚼錠清除菸圈與煙霧區時觸發。參數：中心、半徑。B 播特效。</summary>
-    public event Action<Vector3, float> OnSmokeCleared;
 #pragma warning restore 67
 
     /// <summary>
-    /// 【只給 PlayerEffects（口嚼錠）】清掉範圍內的菸圈與菸炮煙霧區，回傳清掉幾個。【A16 完成】
+    /// 清掉範圍內的菸圈與菸炮煙霧區，回傳清掉幾個。A13 起等於呼叫 ClearableSmoke.ClearInRadius
+    /// （PlayerEffects 的口嚼錠直接呼叫 ClearableSmoke；清除特效請聽 ClearableSmoke.OnCleared）。
+    /// A14、A16 的菸圈與煙霧區要實作 IClearableSmoke 並登記到 ClearableSmoke。
     /// </summary>
     public int ClearSmokeInRadius(Vector3 center, float radius)
     {
-        Debug.Log("[BossAttack] （A10 空殼）ClearSmokeInRadius，A16 完成。", this);
-        return 0;
+        return ClearableSmoke.ClearInRadius(center, radius);
     }
 
     private void OnValidate()

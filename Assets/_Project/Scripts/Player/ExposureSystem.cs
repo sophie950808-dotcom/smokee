@@ -4,7 +4,7 @@ using UnityEngine;
 /// <summary>
 /// 玩家的二手菸暴露值（0–100）。掛在 Player 身上。
 /// 規格見 docs/INTERFACES.md 第 7 節、docs/DECISIONS.md 數值表。
-/// - 在「正在冒煙」的 SmokeSource 半徑內：每秒上升 10 ×（1 − 距離 ÷ 半徑）× RiseMultiplier；
+/// - 在「正在冒煙」的 SmokeSource 半徑內：每秒上升 10 ×（1 − 距離 ÷ 半徑）；
 ///   同時在多個範圍內時，取上升速度最大的那一個（不加總）。
 /// - 不在任何範圍內：每秒下降 3。
 /// - 距離只算水平距離（忽略高度），玩家跳躍時數值不會亂跳。
@@ -34,8 +34,6 @@ public class ExposureSystem : MonoBehaviour
 
     private float _exposure;
     private float _smokeSeconds;
-    private float _riseMultiplier = 1f;
-    private bool _isVisualSuppressed;
     private bool _isWarning;
     private bool _isMaxed;
     private PlayerController _playerController;
@@ -43,8 +41,8 @@ public class ExposureSystem : MonoBehaviour
     /// <summary>實際暴露值 0–100。</summary>
     public float Exposure => _exposure;
 
-    /// <summary>畫面效果用的暴露值（B 讀這個）。v3.1 起一般都等於 Exposure。</summary>
-    public float VisualExposure => _isVisualSuppressed ? 0f : _exposure;
+    /// <summary>畫面效果用的暴露值（B 讀這個）。v3.1 起永遠等於 Exposure。</summary>
+    public float VisualExposure => _exposure;
 
     /// <summary>暴露值 ≥ 警示門檻（預設 80）時為 true。</summary>
     public bool IsWarning => _isWarning;
@@ -54,26 +52,6 @@ public class ExposureSystem : MonoBehaviour
 
     /// <summary>累計待在（正在冒煙的）煙霧範圍內的秒數。只算倒數中（Playing），開場時間不算。</summary>
     public float SmokeSeconds => _smokeSeconds;
-
-    /// <summary>
-    /// 【即將移除】上升速度倍率，預設 1。v3.1 的道具不再使用。不會小於 0。
-    /// </summary>
-    [Obsolete("v3.1 道具不再改變暴露值上升速度。A13 刪除。")]
-    public float RiseMultiplier
-    {
-        get => _riseMultiplier;
-        set => _riseMultiplier = Mathf.Max(0f, value);
-    }
-
-    /// <summary>
-    /// 【即將移除】是否抑制畫面煙霧效果。v3.1 的戒菸噴霧改成攻擊 BOSS，不再使用。
-    /// </summary>
-    [Obsolete("v3.1 戒菸噴霧改成攻擊 BOSS，不再抑制畫面效果。A13 刪除。")]
-    public bool IsVisualSuppressed
-    {
-        get => _isVisualSuppressed;
-        set => _isVisualSuppressed = value;
-    }
 
     /// <summary>暴露值改變時觸發。參數：目前暴露值。</summary>
     public event Action<float> OnExposureChanged;
@@ -110,7 +88,7 @@ public class ExposureSystem : MonoBehaviour
             _smokeSeconds += deltaTime;
         }
 
-        float change = inSmoke ? riseSpeed * _riseMultiplier : -_decayRate;
+        float change = inSmoke ? riseSpeed : -_decayRate;
         SetExposure(_exposure + change * deltaTime);
     }
 
