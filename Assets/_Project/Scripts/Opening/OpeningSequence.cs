@@ -3,11 +3,28 @@ using System.Collections;
 using UnityEngine;
 
 /// <summary>
-/// 死巷開場雙路線控制器 (任務 B.3)
-/// 企劃書規格：3.2 ~ 3.4 節
+/// 死巷開場雙路線控制器 (任務 B.3 & B7)
+/// 企劃書規格：3.2 ~ 3.4 節，接受路線改為隨機一位路人（咳嗽 → 台詞 → 動手 → 暈倒）
 /// </summary>
 public class OpeningSequence : MonoBehaviour
 {
+    [System.Serializable]
+    public class PasserbyProfile
+    {
+        public string roleName;       // 角色稱呼
+        public string attackMethod;   // 動手方式
+        public string line;           // 台詞
+    }
+
+    [Header("隨機路人名單 (企劃書規格 3.2)")]
+    [SerializeField]
+    private PasserbyProfile[] _passerbyProfiles = new PasserbyProfile[]
+    {
+        new PasserbyProfile { roleName = "老奶奶", attackMethod = "拿拐杖打", line = "「肖年欸！年紀輕輕就抽菸是想看我提早死翹翹嗎！」" },
+        new PasserbyProfile { roleName = "小朋友", attackMethod = "拿棒棒糖丟", line = "「你好臭！你好臭！」" },
+        new PasserbyProfile { roleName = "爸爸", attackMethod = "拿衣架打", line = "「兒子阿！你怎麼在抽菸！看我不打死你！」" }
+    };
+
     [Header("角色與物件引用")]
     [Tooltip("吸菸的朋友 NPC")]
     public Transform smokingNPC;
@@ -27,17 +44,15 @@ public class OpeningSequence : MonoBehaviour
     [Header("路人速度設定")]
     public float passerbySpeed = 6.0f;
 
-    [Header("接受吸菸揮拳演出（GameScene）")]
-    [Tooltip("勾選後接受路線播放揮拳、倒地與文字說明，再回到開場選擇；其他場景仍保留原演出")]
-    [SerializeField] private bool _acceptSmokeShowsResult;
-    [Tooltip("門口 NPC 的拳頭物件；由場景設定工具接好")]
+    [Header("接受吸菸演出設定（GameScene）")]
+    [Tooltip("勾選後接受路線播放教訓、倒地與文字說明，再回到開場選擇；其他場景仍保留原演出")]
+    [SerializeField] private bool _acceptSmokeShowsResult = true; // 預設開啟新版演出
+    [Tooltip("門口 NPC 的拳頭或教訓工具物件；由場景設定工具接好")]
     [SerializeField] private Transform _punchHand;
     [Tooltip("NPC 與玩家的水平攻擊距離")]
     [SerializeField] private float _attackDistance = 1.2f;
-    [Tooltip("出拳後到命中的秒數")]
+    [Tooltip("出拳/動手後到命中的秒數")]
     [SerializeField] private float _punchDuration = 0.3f;
-
-    // [I1 整合] 路線選擇改由 RouteManager 記錄（RouteManager.Instance.ChosenRoute），這裡不再另存一份
 
     private bool isDoorOpen = false;
     private bool hasTriggeredExit = false;
@@ -49,8 +64,6 @@ public class OpeningSequence : MonoBehaviour
 
     private void Start()
     {
-        // 路人一直存在於場景中，不隱藏
-
         // 朋友初始先不冒煙
         if (npcSmokeParticles != null)
         {
@@ -70,7 +83,6 @@ public class OpeningSequence : MonoBehaviour
 
     private void OnDestroy()
     {
-        // [I1 整合] 物件被刪除時取消監聽
         if (RouteManager.Instance != null)
         {
             RouteManager.Instance.OnRouteChosen -= HandleRouteChosen;
@@ -78,8 +90,7 @@ public class OpeningSequence : MonoBehaviour
     }
 
     /// <summary>
-    /// [I1 整合] RouteManager 通知玩家選好路線時呼叫：開門；拒絕路線時朋友點菸冒煙。
-    /// （原本寫在選擇框按鈕裡的內容搬到這裡）
+    /// RouteManager 通知玩家選好路線時呼叫
     /// </summary>
     private void HandleRouteChosen(OpeningRoute route)
     {
@@ -89,7 +100,7 @@ public class OpeningSequence : MonoBehaviour
             if (npcSmokeParticles != null) npcSmokeParticles.Play();
             if (smokingNPC != null)
             {
-                SmokeSource src = smokingNPC.GetComponentInChildren<SmokeSource>(); // [I1 整合] SmokeSource 掛在子物件 Capsule 上
+                SmokeSource src = smokingNPC.GetComponentInChildren<SmokeSource>();
                 if (src != null) src.IsEmitting = true;
             }
         }
@@ -98,7 +109,7 @@ public class OpeningSequence : MonoBehaviour
 
     private void OnGUI()
     {
-        // 1. 車庫新手教學提示文字 (往下移到 Y=115，完全避開頂部 HUD 資訊列)
+        // 1. 車庫新手教學提示文字
         if (!hasTriggeredExit && RouteManager.Instance != null && RouteManager.Instance.ChosenRoute != OpeningRoute.None)
         {
             GUIStyle guideStyle = new GUIStyle(GUI.skin.box);
@@ -112,7 +123,7 @@ public class OpeningSequence : MonoBehaviour
             GUI.Box(new Rect(gx, 115, gWidth, gHeight), "【新手引導】靠近吸菸者會吸入二手菸，視野會變暗！\n請操控角色走出車庫展開街道任務！", guideStyle);
         }
 
-        // 2. 路線 A：畫面轉黑 + 字幕提示
+        // 2. 路線 A：畫面轉黑 + 字幕提示（隨機路人台詞與教訓說明）
         if (blackFadeAlpha > 0f)
         {
             Color oldColor = GUI.color;
@@ -123,12 +134,12 @@ public class OpeningSequence : MonoBehaviour
             if (showSubtitle)
             {
                 GUIStyle subStyle = new GUIStyle(GUI.skin.label);
-                subStyle.fontSize = 26;
+                subStyle.fontSize = 24;
                 subStyle.alignment = TextAnchor.MiddleCenter;
                 subStyle.fontStyle = FontStyle.Bold;
-                subStyle.normal.textColor = new Color(1f, 0.3f, 0.3f); // 紅色警示文字
+                subStyle.normal.textColor = new Color(1f, 0.4f, 0.4f); // 亮紅警示色
 
-                GUI.Label(new Rect(0, Screen.height / 2f - 80, Screen.width, 160), narrativeSubtitle, subStyle);
+                GUI.Label(new Rect(0, Screen.height / 2f - 100, Screen.width, 200), narrativeSubtitle, subStyle);
             }
         }
     }
@@ -152,7 +163,6 @@ public class OpeningSequence : MonoBehaviour
         }
         isDoorOpen = true;
 
-        // [I1 整合] 門開了，恢復玩家控制讓玩家走出車庫（RouteManager 在場景開始時把控制關掉了）
         PlayerController controller = player != null
             ? player.GetComponent<PlayerController>()
             : FindFirstObjectByType<PlayerController>();
@@ -169,14 +179,16 @@ public class OpeningSequence : MonoBehaviour
         if (!isDoorOpen || hasTriggeredExit) return;
         hasTriggeredExit = true;
 
-        // [I1 整合] 改讀 RouteManager 記錄的路線
         OpeningRoute route = RouteManager.Instance != null ? RouteManager.Instance.ChosenRoute : OpeningRoute.None;
 
         if (route == OpeningRoute.AcceptSmoke)
         {
+            // 隨機抽選一位路人 (老奶奶 / 小朋友 / 爸爸)
+            PasserbyProfile selected = _passerbyProfiles[UnityEngine.Random.Range(0, _passerbyProfiles.Length)];
+
             StartCoroutine(_acceptSmokeShowsResult
-                ? RouteA_PunchAndRestartRoutine()
-                : RouteA_PunishAndDieRoutine());
+                ? RouteA_PunchAndRestartRoutine(selected)
+                : RouteA_PunishAndDieRoutine(selected));
         }
         else if (route == OpeningRoute.RefuseSmoke)
         {
@@ -184,24 +196,24 @@ public class OpeningSequence : MonoBehaviour
         }
     }
 
-    // GameScene 專用：沿用現有膠囊角色與旋轉倒地演出，不影響其他場景。
-    private IEnumerator RouteA_PunchAndRestartRoutine()
+    // 企畫書新版：隨機路人 咳嗽 → 台詞 → 動手 → 倒地 → 回到選擇
+    private IEnumerator RouteA_PunchAndRestartRoutine(PasserbyProfile profile)
     {
         PlayerController controller = player != null ? player.GetComponent<PlayerController>() : null;
         if (player == null || passerby == null || controller == null || _punchHand == null)
         {
-            Debug.LogError("[開場演出] 接受路線缺少玩家、路人或拳頭引用。", this);
+            Debug.LogError("[開場演出] 接受路線缺少玩家、路人或攻擊物件引用。", this);
             yield break;
         }
 
         controller.SetControlEnabled(false);
-        // SetControlEnabled 仍會更新鏡頭與重力；演出期間停用元件，避免鏡頭被覆蓋。
         controller.enabled = false;
         CharacterController character = player.GetComponent<CharacterController>();
         if (character != null) character.enabled = false;
         foreach (Renderer body in player.GetComponentsInChildren<Renderer>(true)) body.enabled = true;
         passerby.gameObject.SetActive(true);
 
+        // 攝影機對準路人與玩家
         Vector3 towardNpc = passerby.position - player.position;
         towardNpc.y = 0f;
         if (towardNpc.sqrMagnitude > 0.001f) player.rotation = Quaternion.LookRotation(towardNpc);
@@ -217,7 +229,9 @@ public class OpeningSequence : MonoBehaviour
         }
         yield return new WaitForSeconds(0.35f);
 
-        Debug.Log("[接受路線] 門口 NPC 開始跑向玩家。", this);
+        Debug.Log($"[接受路線] 路人【{profile.roleName}】聞到二手菸狂咳，衝過來！", this);
+
+        // 路人跑向玩家
         Vector3 npcStart = passerby.position;
         float elapsed = 0f;
         while (true)
@@ -239,6 +253,7 @@ public class OpeningSequence : MonoBehaviour
         toPlayer.y = 0f;
         if (toPlayer.sqrMagnitude > 0.001f) passerby.rotation = Quaternion.LookRotation(toPlayer);
 
+        // 動手教訓玩家 (拐杖/棒棒糖/衣架/揮拳)
         _punchHand.gameObject.SetActive(true);
         Vector3 handRest = _punchHand.localPosition;
         Vector3 handHit = new Vector3(0.15f, handRest.y, _attackDistance - 0.15f);
@@ -249,8 +264,9 @@ public class OpeningSequence : MonoBehaviour
             yield return null;
         }
         _punchHand.localPosition = handHit;
-        Debug.Log("[接受路線] NPC 揮拳命中，玩家倒地。", this);
+        Debug.Log($"[接受路線] {profile.roleName}【{profile.attackMethod}】命中玩家！", this);
 
+        // 玩家倒地
         Quaternion startRotation = player.rotation;
         Vector3 startPosition = player.position;
         for (float t = 0f; t < 0.45f; t += Time.deltaTime)
@@ -264,63 +280,55 @@ public class OpeningSequence : MonoBehaviour
         player.rotation = startRotation * Quaternion.Euler(-85f, 0f, 0f);
         player.position = startPosition + Vector3.up * 0.4f;
         yield return new WaitForSeconds(0.6f);
+
+        // 畫面漸黑
         while (blackFadeAlpha < 1f)
         {
             blackFadeAlpha = Mathf.Clamp01(blackFadeAlpha + Time.deltaTime * 2f);
             yield return null;
         }
-        narrativeSubtitle = "因為你抽菸臭到路人，\n所以你被揍死了。\n\n即將回到最初的選擇……";
+
+        // 顯示企劃書規範台詞與教訓說明
+        narrativeSubtitle = $"{profile.roleName}咳了幾聲大罵：\n{profile.line}\n然後{profile.attackMethod}將你擊倒！\n\n【二手菸會危害周遭的人！請重新選擇】";
         showSubtitle = true;
-        Debug.Log("[接受路線] 顯示死亡說明，接著回到開場選擇。", this);
-        yield return new WaitForSeconds(3f);
-        // 保留黑幕與說明，沿用 RouteManager 的接受路線重載流程。
+
+        yield return new WaitForSeconds(3.5f);
+
+        // 通知 RouteManager 重置回開場選擇（沿用 RouteManager，不重複重載場景）
         if (RouteManager.Instance != null)
             RouteManager.Instance.NotifyOpeningFinished();
     }
 
-    // --- 路線 A 演出：鏡頭強制對準路人 ➔ 路人衝撞玩家 ➔ 倒地黑屏 ---
-    private IEnumerator RouteA_PunishAndDieRoutine()
+    // 保留相容舊演出，同樣帶入隨機路人
+    private IEnumerator RouteA_PunishAndDieRoutine(PasserbyProfile profile)
     {
-        // 1. 鎖定玩家操作
         PlayerController controller = player != null
             ? player.GetComponent<PlayerController>()
             : FindFirstObjectByType<PlayerController>();
         if (controller != null) controller.SetControlEnabled(false);
 
-        // 2. 原本的 Passerby 直接衝過來撞玩家
         if (passerby != null)
         {
             passerby.gameObject.SetActive(true);
-
-            // 【核心修正】強制鏡頭和玩家轉身正對路人！
             Vector3 lookAtPasserby = (passerby.position - player.position);
             lookAtPasserby.y = 0;
             if (lookAtPasserby != Vector3.zero && player != null)
             {
                 player.rotation = Quaternion.LookRotation(lookAtPasserby);
             }
-            // 【雙人全景側拍攝影機】同時拍到玩家與路人全身！
             if (Camera.main != null && player != null)
             {
                 Camera.main.fieldOfView = 85f;
-                // 1. 計算兩人的中點
                 Vector3 midPoint = (player.position + passerby.position) * 0.5f;
-                // 2. 計算兩人的連線方向與垂直側面方向
                 Vector3 betweenDir = (passerby.position - player.position).normalized;
-                Vector3 sideDir = Vector3.Cross(betweenDir, Vector3.up).normalized; // 垂直側面
-
-                // 3. 攝影機擺在側面 4.5 公尺處、抬高 1.8 公尺
-                Vector3 camPos = midPoint + sideDir * 4.5f + Vector3.up * 1.8f;
-                Camera.main.transform.position = camPos;
+                Vector3 sideDir = Vector3.Cross(betweenDir, Vector3.up).normalized;
+                Camera.main.transform.position = midPoint + sideDir * 4.5f + Vector3.up * 1.8f;
                 Camera.main.transform.LookAt(midPoint + Vector3.up * 0.9f);
             }
 
-            // 停頓 0.35 秒，讓玩家看清楚路人全貌與廣角街景
             yield return new WaitForSeconds(0.35f);
 
             Vector3 targetPos = player != null ? player.position : passerby.position;
-
-            // 朝向玩家衝過來 (速度 3.0 m/s，全程都在鏡頭正中央)
             while (Vector3.Distance(passerby.position, targetPos) > 0.6f)
             {
                 passerby.position = Vector3.MoveTowards(passerby.position, targetPos, 3.0f * Time.deltaTime);
@@ -331,12 +339,11 @@ public class OpeningSequence : MonoBehaviour
             }
         }
 
-        // 3. 玩家被撞倒地
         if (player != null)
         {
             float fallElapsed = 0f;
             Quaternion startRot = player.rotation;
-            Quaternion targetRot = startRot * Quaternion.Euler(85f, 0f, 0f); // 倒地
+            Quaternion targetRot = startRot * Quaternion.Euler(85f, 0f, 0f);
             Vector3 pStart = player.position;
 
             while (fallElapsed < 0.25f)
@@ -349,8 +356,7 @@ public class OpeningSequence : MonoBehaviour
             }
         }
 
-        // 4. 畫面轉黑
-        narrativeSubtitle = "門外路人吸到你飄出的二手菸，憤怒地上前痛扁了你！\n\n【二手菸害人害己，遊戲即將重新開始】";
+        narrativeSubtitle = $"{profile.roleName}：{profile.line}\n\n門外路人吸到二手菸，{profile.attackMethod}教訓了你！\n【二手菸害人害己，遊戲即將重新開始】";
         showSubtitle = true;
 
         float fade = 0f;
@@ -361,27 +367,22 @@ public class OpeningSequence : MonoBehaviour
             yield return null;
         }
 
-        yield return new WaitForSeconds(1.5f);
+        yield return new WaitForSeconds(3.5f);
 
-        // 重新載入場景
         if (RouteManager.Instance != null)
         {
             RouteManager.Instance.NotifyOpeningFinished();
         }
     }
 
-    // --- 路線 B 演出：直接進入街道，通知 RouteManager ---
     private IEnumerator RouteB_EnterStreetRoutine()
     {
         Debug.Log("[路線 B] 成功走出倉庫！玩家進入主要街道！");
-
         if (passerby != null)
         {
             passerby.gameObject.SetActive(true);
         }
 
-        // 關鍵：通知 A 組員的 RouteManager 開場結束
-        // [I1 整合] 改成直接呼叫 RouteManager（原本的 static 事件與 SendMessage 沒有人接收）
         if (RouteManager.Instance != null)
         {
             RouteManager.Instance.NotifyOpeningFinished();
