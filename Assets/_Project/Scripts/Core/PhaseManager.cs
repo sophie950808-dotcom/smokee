@@ -6,7 +6,8 @@ using UnityEngine;
 /// 和 GameManager 放在同一個物件上，用 PhaseManager.Instance 取得。規格見 docs/INTERFACES.md 第 4 節。
 /// A 用事件通知 B、C（OnXxx）；B、C 用 ReportXxx／NotifyXxx 方法回報。
 /// 【A11】階段切換、事件順序、40 秒空檔、拒絕狀態、藏寶圖、進入第三階段（含快照）、里程碑、結局 → 勝利已完成。
-/// 【A15】拒絕時的煙霧倍率（SmokeSource.SetRefusalState）、【A14】BOSS 登場與規則視窗的串接，之後完成。
+/// 【A14】BOSS 登場 → 規則視窗 → BOSS 戰的串接；沒有結局動畫（沒人監聽 OnEndingRequested）時直接勝利結算。
+/// 【A15】拒絕時的煙霧倍率（SmokeSource.SetRefusalState），之後完成。
 /// </summary>
 public class PhaseManager : MonoBehaviour
 {
@@ -22,6 +23,9 @@ public class PhaseManager : MonoBehaviour
 
     /// <summary>目前這個故事事件進行到哪裡。</summary>
     private enum EventStage { None, Requested, Refused, InProgress, Completed }
+
+    /// <summary>第三階段 BOSS 戰的開場進行到哪裡（登場演出 → 規則視窗 → 戰鬥）。</summary>
+    private enum BossFlowStage { None, Intro, Rules, Fight }
 
     [Header("淨化值（整數，1000 = 100%）")]
     [Tooltip("教學菸怪每隻的淨化值（不計入，0）")]
@@ -75,6 +79,7 @@ public class PhaseManager : MonoBehaviour
     private bool _isHelpRefused = false;
     private float _refusalSmokeMultiplier = 1f;
     private bool _hasTreasureMap = false;
+    private BossFlowStage _bossFlowStage = BossFlowStage.None;
     private readonly bool[] _milestoneReached = new bool[MilestonePercents.Length];
     private GameManager _subscribedGameManager;
     private RouteManager _subscribedRouteManager;
@@ -127,13 +132,11 @@ public class PhaseManager : MonoBehaviour
     /// <summary>要播 BOSS 登場動畫時觸發（進入第三階段時；重新挑戰時也會再觸發）。B 監聽。</summary>
     public event Action OnBossIntroRequested;
 
-#pragma warning disable 67 // A14 才會觸發
-    /// <summary>要顯示第三階段規則介紹視窗時觸發。C 的 RulesIntroWindow 監聽。【A14】</summary>
+    /// <summary>BOSS 登場演出播完、要顯示第三階段規則介紹視窗時觸發。C 的 RulesIntroWindow 監聽。</summary>
     public event Action OnRulesIntroRequested;
 
-    /// <summary>規則視窗關掉、BOSS 戰正式開始時觸發。C 的 BOSS 血條顯示。【A14】</summary>
+    /// <summary>規則視窗關掉、BOSS 戰正式開始時觸發（接著 BossController.StartFight）。C 的 BOSS 血條顯示。</summary>
     public event Action OnBossFightStarted;
-#pragma warning restore 67
 
     /// <summary>BOSS 被打倒、要播結局動畫時觸發。B 監聽，播完呼叫 NotifyEndingFinished()。</summary>
     public event Action OnEndingRequested;
@@ -384,16 +387,55 @@ public class PhaseManager : MonoBehaviour
         }
     }
 
-    /// <summary>【B 的 BOSS 登場演出呼叫】登場動畫播完時。【A14 完成】</summary>
+    /// <summary>【B 的 BOSS 登場演出呼叫】登場動畫播完時 → 觸發 OnRulesIntroRequested（C 顯示規則視窗）。只在第三階段登場中有效。</summary>
     public void NotifyBossIntroFinished()
     {
-        Debug.Log("[PhaseManager] NotifyBossIntroFinished 尚未實作（A14）。", this);
+        if (_currentPhase != GamePhase.Phase3 || _bossFlowStage != BossFlowStage.Intro)
+        {
+            Debug.LogWarning("[PhaseManager] 不在 BOSS 登場中（階段 " + _currentPhase + "，" + _bossFlowStage + "），NotifyBossIntroFinished 已忽略。", this);
+            return;
+        }
+
+        _bossFlowStage = BossFlowStage.Rules;
+        if (OnRulesIntroRequested == null)
+        {
+            Debug.LogWarning("[PhaseManager] 沒有規則介紹視窗（C 的 RulesIntroWindow 還沒接）。開發者模式可按 9 直接開始 BOSS 戰。", this);
+        }
+        OnRulesIntroRequested?.Invoke();
     }
 
-    /// <summary>【C 的 RulesIntroWindow 呼叫】玩家點擊關掉規則介紹視窗時。【A14 完成】</summary>
+    /// <summary>【C 的 RulesIntroWindow 呼叫】玩家點擊關掉規則介紹視窗時 → BOSS 戰開始。只在規則視窗顯示中有效。</summary>
     public void NotifyRulesIntroClosed()
     {
-        Debug.Log("[PhaseManager] NotifyRulesIntroClosed 尚未實作（A14）。", this);
+        if (_currentPhase != GamePhase.Phase3 || _bossFlowStage != BossFlowStage.Rules)
+        {
+            Debug.LogWarning("[PhaseManager] 規則視窗不在顯示中（階段 " + _currentPhase + "，" + _bossFlowStage + "），NotifyRulesIntroClosed 已忽略。", this);
+            return;
+        }
+
+        StartBossFight();
+    }
+
+    /// <summary>
+    /// 【只給 A 的 DevTools】跳過登場演出與規則視窗，直接開始 BOSS 戰。只在第三階段、BOSS 戰還沒開始時有效。
+    /// </summary>
+    public void DevStartBossFight()
+    {
+        GameManager gameManager = GameManager.Instance;
+        if (gameManager == null || !gameManager.DevMode)
+        {
+            return;
+        }
+        if (_currentPhase != GamePhase.Phase3
+            || (_bossFlowStage != BossFlowStage.Intro && _bossFlowStage != BossFlowStage.Rules))
+        {
+            Debug.Log("[PhaseManager] 開發者開始 BOSS 戰：要先進入第三階段（按 2），而且 BOSS 戰還沒開始（目前 "
+                      + _currentPhase + "，" + _bossFlowStage + "）。", this);
+            return;
+        }
+
+        Debug.Log("[PhaseManager] 開發者開始 BOSS 戰（跳過登場演出與規則視窗）。", this);
+        StartBossFight();
     }
 
     /// <summary>【B 的結局演出呼叫】結局動畫播完 → 勝利結算。只在 Ending 階段有效。</summary>
@@ -611,7 +653,36 @@ public class PhaseManager : MonoBehaviour
         TaskHint.ClearTask(RefusalHintSource);
 
         SetPhase(GamePhase.Phase3);
+
+        _bossFlowStage = BossFlowStage.Intro;
+        BossController boss = BossController.Instance;
+        if (boss != null)
+        {
+            boss.BeginIntro();
+        }
+        else
+        {
+            Debug.LogWarning("[PhaseManager] 場景裡沒有 BossController（Boss.prefab），BOSS 戰無法進行。", this);
+        }
+
+        if (OnBossIntroRequested == null)
+        {
+            Debug.LogWarning("[PhaseManager] 沒有 BOSS 登場演出（B 的演出還沒接）。開發者模式可按 9 直接開始 BOSS 戰。", this);
+        }
         OnBossIntroRequested?.Invoke();
+    }
+
+    /// <summary>BOSS 戰正式開始（規則視窗關掉、開發者按鍵）：OnBossFightStarted → BossController.StartFight()。</summary>
+    private void StartBossFight()
+    {
+        _bossFlowStage = BossFlowStage.Fight;
+        Debug.Log("[PhaseManager] BOSS 戰開始。", this);
+        OnBossFightStarted?.Invoke();
+
+        if (BossController.Instance != null)
+        {
+            BossController.Instance.StartFight();
+        }
     }
 
     private Phase3Snapshot CaptureSnapshot(GameManager gameManager)
@@ -636,11 +707,18 @@ public class PhaseManager : MonoBehaviour
         }
 
         SetPhase(GamePhase.Ending);
+
+        // 沒有人播結局動畫（B17 還沒接）→ 直接勝利結算。B17 監聽後就會改成等 NotifyEndingFinished()
         if (OnEndingRequested == null)
         {
-            Debug.LogWarning("[PhaseManager] 沒有人播放結局動畫（B 的結局演出還沒接）。開發者模式可按 4 模擬結局播完。", this);
+            Debug.Log("[PhaseManager] 沒有結局動畫（沒有人監聽 OnEndingRequested），直接勝利結算。", this);
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.FinishWithVictory();
+            }
+            return;
         }
-        OnEndingRequested?.Invoke();
+        OnEndingRequested.Invoke();
     }
 
     private bool IsCurrentEvent(int index, string caller)

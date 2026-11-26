@@ -5,7 +5,8 @@ using UnityEngine;
 /// 開發者面板（只在測試用）：用 OnGUI 在畫面左上角顯示遊戲狀態與快捷鍵說明。
 /// 只有 GameManager 勾選 devMode 時才會顯示。
 /// 顯示：狀態、路線、階段、故事事件、空檔倒數、淨化（整數與百分比）、用時、計時是否暫停（與申請的 key）、
-/// 目前任務提示、淨化里程碑、第三階段快照、HP、暴露值、互動目標與 QTE、三種道具狀態與噴霧冷卻；
+/// 目前任務提示、淨化里程碑、第三階段快照、HP（含無敵）、暴露值、互動目標與 QTE、三種道具狀態與噴霧冷卻、
+/// BOSS 狀態／血量／場上菸圈數量／下一個菸圈倒數；
 /// 遊戲結束時另外顯示完整的 ScoreResult。
 /// 找不到 PlayerHealth／ExposureSystem／PhaseManager／PlayerInteractor／PlayerEffects 時該欄顯示 N/A。
 /// </summary>
@@ -18,6 +19,7 @@ public class DevOverlay : MonoBehaviour
     private ExposureSystem _exposureSystem;
     private PlayerInteractor _playerInteractor;
     private PlayerEffects _playerEffects;
+    private BossAttack _bossAttack;
     private GUIStyle _style;
 
     private void Start()
@@ -49,6 +51,7 @@ public class DevOverlay : MonoBehaviour
 
         string hpText = _playerHealth != null
             ? _playerHealth.CurrentHp.ToString("F0") + " / " + _playerHealth.MaxHp.ToString("F0")
+              + (_playerHealth.DevInvincible ? "【無敵】" : "")
             : "N/A";
         string exposureText = _exposureSystem != null
             ? Mathf.RoundToInt(_exposureSystem.Exposure).ToString()
@@ -80,6 +83,7 @@ public class DevOverlay : MonoBehaviour
             "暴露值：" + exposureText + "\n" +
             GetInteractText() +
             GetItemText() +
+            GetBossText() +
             GetResultText(gameManager) +
             "──────────\n" +
             DevHotkeys.HelpText;
@@ -167,6 +171,37 @@ public class DevOverlay : MonoBehaviour
         return "道具：貼片 " + phase3Text + "　口嚼錠 " + phase3Text + "（半徑 " + _playerEffects.GumClearRadius
                + "，場上可清除煙霧 " + ClearableSmoke.All.Count + " 個）　噴霧 " + sprayText + "\n" +
                "最近一次使用：" + _playerEffects.LastUseText + "\n";
+    }
+
+    /// <summary>BOSS 狀態、血量、場上菸圈數量、下一個菸圈倒數。</summary>
+    private string GetBossText()
+    {
+        BossController boss = BossController.Instance;
+        if (boss == null)
+        {
+            return "BOSS：N/A（沒有 BossController）\n";
+        }
+
+        if (_bossAttack == null)
+        {
+            _bossAttack = boss.GetComponent<BossAttack>();
+        }
+
+        BossHealth health = BossHealth.Instance;
+        string hpText = health != null
+            ? health.CurrentHp.ToString("F1") + " / " + health.MaxHp.ToString("F0")
+            : "N/A";
+
+        string ringText = "N/A";
+        if (_bossAttack != null)
+        {
+            ringText = "場上 " + _bossAttack.ActiveRingCount + " 個，下一個 "
+                       + (boss.State == BossState.Ground
+                           ? _bossAttack.SmokeRingCooldownRemaining.ToString("F1") + " 秒"
+                           : "—（不在地面）");
+        }
+
+        return "BOSS：" + boss.State + "　血量 " + hpText + "　菸圈：" + ringText + "\n";
     }
 
     private static string FormatTime(float seconds)

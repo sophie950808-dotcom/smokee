@@ -1,9 +1,9 @@
 using UnityEngine;
 
 /// <summary>
-/// 可以被尼古丁口嚼錠清除的 BOSS 煙霧（A14 的菸圈、A16 的菸炮煙霧區、DevTools 的假菸圈）。
+/// 可以被尼古丁口嚼錠清除的 BOSS 煙霧（A16 的煙霧區、DevTools 的假菸圈）。A14 決定菸圈「不」實作。
 /// 出生時呼叫 ClearableSmoke.Register(this)，消失時呼叫 ClearableSmoke.Unregister(this)。
-/// 還在空中飛的菸炮不要實作（DECISIONS：不清除）。
+/// 飛行中的菸圈不要實作（DECISIONS：口嚼錠只清煙霧區）。
 /// </summary>
 public interface IClearableSmoke
 {

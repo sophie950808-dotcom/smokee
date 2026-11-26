@@ -24,12 +24,23 @@ public class PlayerHealth : MonoBehaviour
 
     private float _currentHp;
     private bool _isDead;
+    private bool _devInvincible;
 
     /// <summary>目前 HP。</summary>
     public float CurrentHp => _currentHp;
 
     /// <summary>最大 HP。</summary>
     public float MaxHp => _maxHp;
+
+    /// <summary>
+    /// 【只給開發者工具用，B、C 不要使用】玩家無敵：開啟時所有傷害都不扣（包含暴露值 100 的扣血）。
+    /// 只有 GameManager 開啟開發者模式時才能設成 true。
+    /// </summary>
+    public bool DevInvincible
+    {
+        get => _devInvincible;
+        set => _devInvincible = value && GameManager.Instance != null && GameManager.Instance.DevMode;
+    }
 
     /// <summary>HP 改變時觸發。參數：目前 HP、最大 HP。</summary>
     public event Action<float, float> OnHpChanged;
@@ -101,7 +112,7 @@ public class PlayerHealth : MonoBehaviour
     /// </summary>
     public void TakeDamage(float amount, DamageSource source)
     {
-        if (_isDead || amount <= 0f || !CanChangeHp())
+        if (_isDead || amount <= 0f || _devInvincible || !CanChangeHp())
         {
             return;
         }

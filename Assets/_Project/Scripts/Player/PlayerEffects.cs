@@ -5,7 +5,7 @@ using UnityEngine;
 /// 3 種道具的效果（尼古丁貼片、尼古丁口嚼錠、尼古丁戒菸噴霧）。掛在 Player 身上（和 PlayerController、PlayerHealth 同一個物件）。
 /// C 的背包按右鍵時呼叫 TryUseItem，依回傳值決定要不要扣數量（只有 Consumed 要減 1）。規格見 docs/INTERFACES.md 第 12 節。
 /// - 貼片：只能在第三階段；HP +30（不超過上限）；滿血時不能用（不消耗）；一次性。
-/// - 口嚼錠：只能在第三階段；清除玩家周圍 15 公尺內的 BOSS 菸圈與煙霧區（ClearableSmoke）；一次性。
+/// - 口嚼錠：只能在第三階段；清除玩家周圍 15 公尺內的 BOSS 煙霧區（ClearableSmoke；A14 起不清菸圈）；一次性。
 /// - 噴霧：無次數限制、冷卻 1.5 秒；從鏡頭中央往前瞬間判定，只對 IBossDamageable（BOSS）造成 7.5 傷害。
 /// </summary>
 [RequireComponent(typeof(PlayerController))]
@@ -23,7 +23,7 @@ public class PlayerEffects : MonoBehaviour
     [SerializeField] private float _patchHealAmount = 30f;
 
     [Header("尼古丁口嚼錠")]
-    [Tooltip("清除玩家周圍多少公尺內的 BOSS 菸圈與菸炮煙霧區")]
+    [Tooltip("清除玩家周圍多少公尺內的 BOSS 煙霧區（天上菸圈落地留下的；菸圈本身不清除）")]
     [SerializeField] private float _gumClearRadius = 15f;
 
     [Header("尼古丁戒菸噴霧")]

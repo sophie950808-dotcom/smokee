@@ -31,9 +31,9 @@
 - 對話框、視窗打開時：PlayerController.SetControlLock("自己的 key", true)、GameManager.SetTimerPaused("自己的 key", true)，關閉時改 false
 - DialogueUI.Show(lines, onFinished)、DialogueData（台詞資料）、DialogueLine（GameTypes 裡）；對話用滑鼠左鍵或空白鍵翻頁
 - HelpPromptUI.Show(question, onAccept, onRefuse)；「按 E」提示：PlayerInteractor.OnFocusChanged
-- RulesIntroWindow：監聽 PhaseManager.OnRulesIntroRequested，點擊後呼叫 PhaseManager.NotifyRulesIntroClosed()
+- RulesIntroWindow：監聽 PhaseManager.OnRulesIntroRequested，點擊後呼叫 PhaseManager.NotifyRulesIntroClosed()（A14 已串接：關掉後 BOSS 戰開始）。規則視窗內容提醒：菸炮已取消，BOSS 在地面和天上都吐菸圈（天上的菸圈落地會留下煙霧區），口嚼錠可清除 15 公尺內的煙霧區（不能清除菸圈）
 - QteBarUI：監聽 SmokerNPC.OnQteStarted／OnQteEnded，每幀讀 SmokerNPC.ActiveQte 的 QtePresses、QteRequired、QteTimeRemaining、QteDuration
-- BossHealthBar：PhaseManager.OnBossFightStarted、BossHealth.OnBossHpChanged(目前, 最大)、OnBossDefeated
+- BossHealthBar：PhaseManager.OnBossFightStarted 顯示、BossHealth.OnBossHpChanged(目前, 最大) 更新、BossHealth.OnBossDefeated 隱藏（A14 已完成，BOSS 最大血量 150；回血也會觸發 OnBossHpChanged）
 - 背包：監聽 ItemRewards.OnItemGranted 加道具；右鍵前檢查 PlayerController.IsActionAllowed(PlayerAction.UseItem)，滾輪切換也要先檢查同一個條件（新手教學期間會自動鎖住）；呼叫 PlayerEffects.TryUseItem(type)，回傳 Consumed 才減 1（噴霧回傳 UsedNotConsumed，永遠不扣）；噴霧冷卻讀 SprayCooldownRemaining ／ SprayCooldown。「第三階段才能使用」由 A 自動用 TaskHint.ShowToast 顯示，背包不用再顯示；想做音效或圖示抖動可以聽 PlayerEffects.OnItemUseRejected(道具, 結果, 原因文字)。ItemType 只剩 NicotinePatch、NicotineGum、NicotineSpray。背包要提供 GetCount(ItemType)；重新挑戰的背包快照由 A 的 Phase3Checkpoint 保存，背包不用自己記（SetCount 等介面待 A 確認，見第 22 節）
 - 小地圖：SmokeMonster.All、TreasureChest.Instance.IsRevealed／PhaseManager.OnTreasureMapObtained、SmokerNPC.All（IsSmoking）
 - PlayerHealth.OnHpChanged、ExposureSystem.OnWarningChanged（不變）；RouteManager.Instance.ChooseRoute(...)（不變）
