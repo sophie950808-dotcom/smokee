@@ -12,7 +12,7 @@ using UnityEngine.SceneManagement;
 /// 4. A5：在 TestScene_A 放 GameManager（開發者模式、自動開始倒數）與開發者工具
 /// 5. A9：在 TestScene_A 放 RouteManager 與死巷出口測試方塊
 /// 6. A6：Player Prefab 補上 ExposureSystem、地板擴大到 200 x 200、放 2 個假煙霧來源
-/// 7. A13：Player Prefab 補上 PlayerEffects，放假 BOSS、假菸圈、假吸菸 NPC、一般互動物件
+/// 7. A13：Player Prefab 補上 PlayerEffects，放假菸圈、假吸菸 NPC、一般互動物件（A14 起假 BOSS 改用真的 Boss.prefab，見 BossSetupTools）
 /// </summary>
 public static class PlayerSetupTools
 {
@@ -342,7 +342,7 @@ public static class PlayerSetupTools
     /// <summary>
     /// 選單：A13。在 Player Prefab 補上 PlayerEffects（其他設定保留），
     /// 並在 TestScene_A 玩家出生點的後方（南邊）放道具與互動測試物件：
-    /// 假 BOSS、兩個假菸圈（一個在出生點 15 公尺內、一個在外）、假吸菸 NPC、一般互動物件。
+    /// 兩個假菸圈（一個在出生點 15 公尺內、一個在外）、假吸菸 NPC、一般互動物件。（A14 起不再放假 BOSS）
     /// 重複執行會先刪掉上次放的 A13 物件再重放。
     /// </summary>
     [MenuItem("Tools/Smokee/A - A13 放置道具與互動測試物件")]
@@ -390,7 +390,7 @@ public static class PlayerSetupTools
 
         string message = "A13 測試物件已放好並存檔（在玩家出生點後方，按 Play 後轉身就看得到）。\n" +
                          (prefabUpdated ? "Player Prefab 已補上 PlayerEffects。\n" : "") +
-                         "\n深灰大方塊 = 假 BOSS（用噴霧打）\n" +
+                         "\n（假 BOSS 已移除，BOSS 測試請用「A - A14 放置 BOSS 戰測試區」）\n" +
                          "灰色小球 = 假菸圈（Inside 在出生點 15 公尺內、Outside 在外）\n" +
                          "橘色膠囊 = 假吸菸 NPC（面向它、2 公尺內按 E，再連打 E）\n" +
                          "綠色方塊 = 一般互動物件";
@@ -441,23 +441,17 @@ public static class PlayerSetupTools
 
     /// <summary>
     /// 放 A13 測試物件（玩家出生在 (0, 0, -10)，面向 +Z；這些物件放在後方 z &lt; -10）：
-    /// 假 BOSS (0, 3, -32)：距離出生點約 22 公尺（噴霧最遠 30）。
     /// 假菸圈 Inside (6, 1.5, -18)：距離出生點約 10 公尺；Outside (-20, 1.5, -22)：約 23 公尺。
     /// 假吸菸 NPC (3, 1, -15)、一般互動物件 (-3, 0.5, -15)。
     /// </summary>
     private static void BuildA13TestObjects()
     {
         EnsureFolder(MaterialFolder);
-        Material bossMaterial = GetOrCreateMaterial("TestA_FakeBoss", new Color(0.35f, 0.35f, 0.35f));
         Material ringMaterial = GetOrCreateMaterial("TestA_FakeSmokeRing", new Color(0.75f, 0.75f, 0.75f));
         Material smokerMaterial = GetOrCreateMaterial("TestA_FakeSmoker", new Color(1f, 0.55f, 0.15f));
         Material interactMaterial = GetOrCreateMaterial("TestA_Interactable", new Color(0.2f, 0.8f, 0.3f));
 
         Transform root = new GameObject(A13RootName).transform;
-
-        // 假 BOSS：方塊自帶 BoxCollider，噴霧打得到
-        GameObject boss = CreateBlock("FakeBoss", root, new Vector3(0f, 3f, -32f), new Vector3(4f, 6f, 4f), bossMaterial);
-        boss.AddComponent<FakeBoss>();
 
         // 假菸圈：拿掉碰撞體（不擋玩家、不擋噴霧），只用位置判斷
         CreateFakeSmokeRing("FakeSmokeRing_Inside", root, new Vector3(6f, 1.5f, -18f), ringMaterial);

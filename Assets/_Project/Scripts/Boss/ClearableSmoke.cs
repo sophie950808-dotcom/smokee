@@ -4,7 +4,8 @@ using UnityEngine;
 
 /// <summary>
 /// 場上所有「可以被口嚼錠清除」的 BOSS 煙霧登記表（static class）。
-/// 菸圈、煙霧區出生時 Register、消失時 Unregister；PlayerEffects 的口嚼錠呼叫 ClearInRadius。
+/// 煙霧區（A16）出生時 Register、消失時 Unregister；PlayerEffects 的口嚼錠呼叫 ClearInRadius。
+/// （A14 決定）菸圈「不」登記，口嚼錠不能清除菸圈。
 /// 規格見 docs/INTERFACES.md 第 14 節。
 /// </summary>
 public static class ClearableSmoke

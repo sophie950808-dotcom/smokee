@@ -42,9 +42,13 @@
   - 任務提示用 `TaskHint.SetTask("StoryEvent", 文字)`；對話用 C 的 `DialogueUI.Show(...)`；「要幫忙嗎？」用 C 的 `HelpPromptUI.Show(...)`
   - 傳送用 `PlayerController.TeleportTo(...)`，期間 `GameManager.SetTimerPaused("Teleport", true)`、`PlayerController.SetControlLock("Teleport", true)`
 - **BOSS 外觀與演出**（B13、B15–B17）：BOSS 的移動、縮放、傷害判定是 A 的；B 只做模型（子物件）、動畫、特效
+  - （A14）Prefab 在 `Assets/_Project/Prefabs/Boss/`：**B 只改 `BossVisual.prefab`、`SmokeRingVisual.prefab`**（巢狀放在 A 的 `Boss.prefab`、`SmokeRing.prefab` 裡）；不要改 A 的 Prefab，Visual 裡不要加碰撞體或邏輯腳本。B13 把 `Boss.prefab` 拖進 GameScene 並設定 BossController 的 `_groundPoint`（場景裡只能有一個 BOSS）
+  - （A14）**菸炮取消**：天上也吐同一種菸圈（天上的菸圈落地留下 3 秒煙霧區，A16）。菸圈特效接 `BossAttack.OnSmokeRingFired(起點, 方向)`；**不要接** `OnCannonFired`／`OnCannonLanded`。口嚼錠只清煙霧區、不清菸圈（`ClearableSmoke.OnCleared` 照樣觸發）
+  - （A14）BOSS 在地面時根物件會水平轉向玩家：`BossVisual.prefab` 的模型正面請朝 +Z
   - 監聽 `PhaseManager.OnBossIntroRequested` 播登場 → `PhaseManager.NotifyBossIntroFinished()`（重新挑戰會再播一次）
   - 監聽 `BossController.OnStateChanged`、`OnSizeLevelChanged`、`BossHealth.OnBossDamaged`、`BossAttack` 的事件、`PlayerEffects.OnSprayFired(起點, 終點, 有沒有打中)`、口嚼錠清除特效聽 `ClearableSmoke.OnCleared(中心, 半徑)`（A13 起取代 `BossAttack.OnSmokeCleared`）
-  - 監聽 `PhaseManager.OnEndingRequested` 播結局 → `PhaseManager.NotifyEndingFinished()`
+  - 監聽 `PhaseManager.OnEndingRequested` 播結局 → `PhaseManager.NotifyEndingFinished()`（A14：**一監聽就一定要在播完時呼叫**，否則遊戲不會結算；沒有人監聽時 A 會直接結算）
+  - 受擊特效：`BossHealth.OnBossDamaged(傷害, 來源)`，來源 `DamageSource.PlayerMelee`（近戰）／`Spray`（噴霧）
   - 過場鏡頭用 `PlayerController.SetCameraOverride(點)`，不用再把 PlayerController 停用
 - 畫面效果讀 `ExposureSystem.VisualExposure`（不變）
 - 會被玩家按 E 互動的 NPC 實作 `IInteractable`；**不要自己讀 E 鍵或 Q 鍵**。需要額外條件（例如要面向 NPC）時，可以另外實作可選介面 `IInteractCondition`（A13，見 INTERFACES 第 2 節）

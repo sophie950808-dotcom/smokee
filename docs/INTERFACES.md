@@ -1,6 +1,17 @@
 # INTERFACES.md — 共用介面規格（v3.1／第二次檢核）
 
-> 更新日期：2026-11-25（A13）。依據 `docs/GDD_v3.1.md` 與 `docs/DECISIONS.md`。
+> 更新日期：2026-11-26（A14）。依據 `docs/GDD_v3.1.md` 與 `docs/DECISIONS.md`。
+>
+> **A14 更新內容（2026-11-26）**
+> - BOSS 地面版完成：`BossController`（狀態機）、`BossHealth`（🆕 `Heal`、實作 `IBossDamageable`）、`BossAttack`（🆕 `ActiveRingCount`、`SmokeRingCooldownRemaining`、`StopAndClearAll`）、🆕 `BossSmokeRing`（第 14 節）
+> - **菸炮取消，和菸圈合併成同一種東西**（天上也吐菸圈；天上的菸圈落地留下 3 秒煙霧區，A16）。`OnCannonFired`／`OnCannonLanded` A16 刪除
+> - 🆕 BOSS Prefab 結構與擁有者（第 14 節）：`Boss.prefab`／`SmokeRing.prefab`（A）裡面巢狀 `BossVisual.prefab`／`SmokeRingVisual.prefab`（B）
+> - PhaseManager：登場 → 規則視窗 → BOSS 戰串接完成；🆕 `DevStartBossFight()`；**沒有人監聽 `OnEndingRequested` 時直接勝利結算**（第 4 節）
+> - PlayerHealth 🆕 `DevInvincible`（開發者用，第 9 節）
+> - **口嚼錠不能清除菸圈**（只清煙霧區）：`BossSmokeRing` 不實作 `IClearableSmoke`
+> - BossController：BOSS 戰中在地面時水平轉向玩家（Inspector `_turnSpeed`，預設每秒 360 度）
+> - 刪除：DevTools 的 `FakeBoss`（改用真的 BOSS）
+> - 標 🆕A14 = 這次新增
 >
 > **A13 更新內容（2026-11-25）**
 > - 🆕 可選介面 `IInteractCondition`（目標自己的互動條件）、`IQteInteractable`（QTE 期間 E 鍵轉交）；PlayerInteractor 🆕 `CurrentQteTarget`、`OnQteModeChanged`（第 2 節）
@@ -127,7 +138,7 @@ public interface IBossDamageable {
     void TakeDamage(float amount, DamageSource source);   // 噴霧：(7.5, DamageSource.Spray)
 }
 ```
-- **噴霧只認這個介面**（PlayerEffects 不直接依賴 BossHealth）。實作者：A14 的 `BossHealth`、DevTools 的 `FakeBoss`。
+- **噴霧只認這個介面**（PlayerEffects 不直接依賴 BossHealth）。實作者：A14 的 `BossHealth`（DevTools 的 `FakeBoss` A14 已移除）。
 - **小菸怪不要實作**（噴霧對小菸怪無效）。實作的物件（或子物件）要有 Collider（可以是 Trigger）。
 
 ## 2. 介面 `IInteractable` `Scripts/Interaction/IInteractable.cs`（擁有者：A）
@@ -242,7 +253,7 @@ public interface IQteInteractable : IInteractable {
 
 ---
 
-## 4. `PhaseManager` `Scripts/Core/PhaseManager.cs`（擁有者：A，A11 完成；A14 補 BOSS 串接、A15 補拒絕煙霧倍率）
+## 4. `PhaseManager` `Scripts/Core/PhaseManager.cs`（擁有者：A，A11 完成；A14 BOSS 串接完成；A15 補拒絕煙霧倍率）
 
 整局流程的導演：教學 → 第一階段 → 三個事件 → 寶箱 → BOSS → 結局。和 GameManager 放在同一個物件上。
 **GameScene 的 GameManager 物件上要掛 PhaseManager 和 TutorialManager（B 在 GameScene 加）。**
@@ -272,9 +283,9 @@ public interface IQteInteractable : IInteractable {
 | `event Action<bool> OnHelpRefusedChanged` | true = 開始拒絕（NPC 開始跟著玩家、菸怪外觀改「打不掉」）；false = 接下任務，恢復 |
 | `event Action OnTreasureMapObtained` | 小地圖顯示寶箱（C）、寶箱發光（B 可選） |
 | `event Action OnBossIntroRequested` | **B 播 BOSS 登場動畫**（大煙怪衝上天、吸菸者散開）；進入第三階段時發出，重新挑戰時也會再發一次 |
-| `event Action OnRulesIntroRequested` | **C 顯示第三階段規則介紹視窗**（A14 串接） |
-| `event Action OnBossFightStarted` | 規則視窗關掉，BOSS 戰正式開始（A14 串接） |
-| `event Action OnEndingRequested` | BOSS 被打倒 → **B 播結局動畫**（遺言對話、綠色無煙城市） |
+| `event Action OnRulesIntroRequested` | **C 顯示第三階段規則介紹視窗**（B 呼叫 `NotifyBossIntroFinished()` 之後） |
+| `event Action OnBossFightStarted` | 規則視窗關掉，BOSS 戰正式開始（緊接著 `BossController.StartFight()`） |
+| `event Action OnEndingRequested` | BOSS 被打倒 → **B 播結局動畫**（遺言對話、綠色無煙城市）。🆕A14 **只要有人監聽，PhaseManager 就會等 `NotifyEndingFinished()` 才結算；沒有人監聽時直接勝利結算**（B17 接上之前） |
 
 ### 呼叫 PhaseManager 的方法
 | 方法 | 誰呼叫 | 時機 |
@@ -284,11 +295,11 @@ public interface IQteInteractable : IInteractable {
 | `void ReportEventAccepted(int index)` | B 的 Director | 事件一對話結束（強制）；事件二、三按「幫忙」；**拒絕後重新接受也是這個** |
 | `void ReportHelpRefused(int index)` | B 的 Director | 事件二、三按「拒絕」（可以重複拒絕；事件一呼叫會被忽略） |
 | `void ReportEventCompleted(int index)` | B 的 Director | 給完道具、傳送回街道之後（要先接受過） |
-| `void NotifyBossIntroFinished()` | B 的 BOSS 登場演出 | 登場動畫播完（A14 串接） |
-| `void NotifyRulesIntroClosed()` | C 的 RulesIntroWindow | 玩家點擊關掉視窗（A14 串接） |
+| `void NotifyBossIntroFinished()` | B 的 BOSS 登場演出 | 登場動畫播完 → `OnRulesIntroRequested`。只在第三階段登場中有效 |
+| `void NotifyRulesIntroClosed()` | C 的 RulesIntroWindow | 玩家點擊關掉視窗 → `OnBossFightStarted` → `BossController.StartFight()`。只在規則視窗顯示中有效 |
 | `void NotifyEndingFinished()` | B 的結局演出 | 結局動畫播完 → 勝利結算（Ending 階段才有效） |
 | `void EnterPhase3()` | 【只給 A 的 TreasureChest】 | 寶箱打開（第二階段、拿到藏寶圖後才有效，只有第一次有效） |
-| `void DevJumpToPhase3()` / `void DevSetEventGapRemaining(float)` | 【只給 A 的 DevTools】 | 開發者快捷鍵 |
+| `void DevJumpToPhase3()` / `void DevSetEventGapRemaining(float)` / 🆕A14 `void DevStartBossFight()` | 【只給 A 的 DevTools】 | 開發者快捷鍵（`DevStartBossFight`：跳過登場與規則視窗，直接開始 BOSS 戰） |
 
 - 編號不對、順序不對（例如還沒接受就完成、空檔中回報）的呼叫會被忽略並在 Console 印黃色警告。
 
@@ -297,8 +308,9 @@ public interface IQteInteractable : IInteractable {
 - 40 秒空檔（Inspector 可調）在暫停選單、「暫停計時」期間都會停。
 - 拒絕：`IsHelpRefused`、`OnHelpRefusedChanged`、任務提示「煙霧好像越來越濃了……」（source `Refusal`），接下後清掉。**煙霧倍率（每 10 秒 +0.1、最多 2 倍）與 `SmokeSource.SetRefusalState` 由 A15 完成**。
 - 事件三完成 → `HasTreasureMap = true`、`OnTreasureMapObtained`、任務提示「到吸菸室旁的寶箱看看」。
-- 進入第三階段（`EnterPhase3`）：教學與三個事件視為完成 → `GameManager.LockPurificationForPhase3()`（60%）→ **第一次進入時存下快照**（第 22 節）→ 清掉 `Phase` 任務提示 → `OnPhaseChanged(Phase3)` → `OnBossIntroRequested`。
-- BOSS 被打倒（`GameManager.NotifyBossDefeated()` → 淨化 100%）→ `OnPurificationMilestone(100)` → `OnPhaseChanged(Ending)` → `OnEndingRequested` → B 呼叫 `NotifyEndingFinished()` → 勝利結算。
+- 進入第三階段（`EnterPhase3`）：教學與三個事件視為完成 → `GameManager.LockPurificationForPhase3()`（60%）→ **第一次進入時存下快照**（第 22 節）→ 清掉 `Phase` 任務提示 → `OnPhaseChanged(Phase3)` → `BossController.BeginIntro()` → `OnBossIntroRequested`。
+- 🆕A14 BOSS 戰開場順序固定：登場（等 B 的 `NotifyBossIntroFinished`）→ 規則視窗（等 C 的 `NotifyRulesIntroClosed`）→ 戰鬥。**沒有人接登場或規則視窗時不會自動跳過**（印黃色警告，停在那一步；開發者按 9）。
+- BOSS 被打倒（`GameManager.NotifyBossDefeated()` → 淨化 100%）→ `OnPurificationMilestone(100)` → `OnPhaseChanged(Ending)` → `OnEndingRequested` → B 呼叫 `NotifyEndingFinished()` → 勝利結算。🆕A14 沒有人監聽 `OnEndingRequested` 時，直接勝利結算（之後 B17 加上結局動畫，**GameManager 與 PhaseManager 都不用改**）。
 
 
 ## 5. 🆕 `TutorialManager` `Scripts/Core/TutorialManager.cs`（擁有者：A，A 已建空殼，A12 完成）
@@ -382,6 +394,7 @@ public static class TaskHint {
 | 🆕 `event Action<float, DamageSource> OnDamaged` | 參數：扣多少、來源 → B 受擊特效、C 受傷紅框 |
 | `void Heal(float amount)` | 不變（尼古丁貼片 +30 用；EscortNPC 已刪除） |
 | 🆕 `void ResetHp(float hp)` | 【只給 GameManager、TutorialManager】教學結束／教學中歸零補滿、重新挑戰恢復快照（也會清掉「已死亡」狀態） |
+| 🆕A14 `bool DevInvincible { get; set; }` | 【只給 A 的 DevTools】玩家無敵：所有傷害都不扣（含暴露值 100 的扣血）。只有開發者模式下能設成 true |
 
 - 「暫停計時」期間不扣也不回。
 
@@ -429,7 +442,7 @@ public static class TaskHint {
 | 道具 | 效果 | 限制 |
 |---|---|---|
 | 尼古丁貼片 | `PlayerHealth.Heal(30)`（不超過上限） | 只能在第三階段；一次；**滿血時不能用**（不消耗） |
-| 尼古丁口嚼錠 | `ClearableSmoke.ClearInRadius(玩家位置, 15)`：清除 15 公尺內（3D 距離）所有 BOSS 菸圈與菸炮煙霧區 | 只能在第三階段；一次 |
+| 尼古丁口嚼錠 | `ClearableSmoke.ClearInRadius(玩家位置, 15)`：清除 15 公尺內（3D 距離）所有 BOSS 煙霧區（A14 起**不清菸圈**） | 只能在第三階段；一次 |
 | 尼古丁戒菸噴霧 | 從**鏡頭中央**射線瞬間判定（最遠 30 公尺【暫定】）；最先碰到 `IBossDamageable` → `TakeDamage(7.5, Spray)` | 無次數限制；冷卻 1.5 秒；不限階段（拿到時已經是第三階段） |
 
 - 噴霧射線：**穿過**玩家自己、不是 BOSS 的 Trigger、小菸怪（`IHittable`）；碰到其他實心物件（牆）就停下。
@@ -476,52 +489,84 @@ public static class ItemRewards {
 
 ---
 
-## 14. 🆕 BOSS `Scripts/Boss/`（擁有者：A，A14、A16 完成；外觀、特效由 B 依事件播放）
+## 14. 🆕 BOSS `Scripts/Boss/`（擁有者：A，A14 地面版完成、A16 天上與最終局面；外觀、特效由 B 依事件播放）
 
-BOSS Prefab 結構：根物件掛 `BossController`、`BossHealth`、`BossAttack`、`SmokeSource`（半徑 7）＋碰撞體。**B 的模型與特效放在子物件**，不要在子物件放 Collider 以外的邏輯。
-**BOSS 的移動（天上高度、降落）與縮放由 A 的 BossController 控制根物件**；B 只做模型、動畫、粒子。
+### 🆕A14 Prefab 結構與擁有者（`Assets/_Project/Prefabs/Boss/`）
+```
+Boss.prefab（A）              BossController、BossHealth、BossAttack、SmokeSource（半徑 7）、CapsuleCollider（高 4、半徑 1，實心）
+ ├ RingMuzzle（A）            菸圈發射點（離地 2 公尺）
+ └ BossVisual.prefab（B）     巢狀 Prefab：模型、動畫、粒子（暫時是灰色膠囊，沒有碰撞體）
+SmokeRing.prefab（A）         BossSmokeRing（沒有碰撞體，用程式判定命中）
+ └ SmokeRingVisual.prefab（B）巢狀 Prefab：菸圈外觀（暫時是扁球，直徑 1.6 = 命中半徑 0.8；+Z 是飛行方向）
+```
+- 建立方式：A 的選單 `Tools/Smokee/A - A14 建立 BOSS Prefab`。**B 的 Visual Prefab 已經存在時不會被覆蓋**。
+- **B 換外觀：只打開 `BossVisual.prefab`、`SmokeRingVisual.prefab`**，刪掉暫時的膠囊／球，放模型、Animator、粒子。不要改 `Boss.prefab`、`SmokeRing.prefab`；Visual 裡不要放碰撞體以外的邏輯，也不要放會擋住玩家的碰撞體（BOSS 的碰撞體在根物件）。
+- **BOSS 的移動（天上高度、降落）與縮放由 A 的 BossController 控制根物件**；B 只做模型、動畫、粒子，依事件播放。
+- BOSS 在 GameScene 的位置由 B13 決定（B 把 `Boss.prefab` 拖進 GameScene，並把地面位置的空物件拖進 BossController 的 `_groundPoint`；留空 = 原地）。**場景裡只能有一個 BOSS。**
+- BOSS 戰開始前 BOSS 一直在場景裡、看得到（A14 不隱藏）；要不要在登場前藏起來由 B 的登場演出決定。
 
 ### `BossController`
 | 成員 | 說明 |
 |---|---|
 | `static BossController Instance` | |
-| `BossState State { get; }` | |
+| `BossState State { get; }` | Inactive → Intro → Ground／Sky → Final → Defeated |
 | `event Action<BossState> OnStateChanged` | **B 播起飛、降落、最終局面、倒下的動畫** |
-| `int SizeLevel { get; }` | 0–3，血量每降 25% 加一級（飛得更低、體型更小） |
-| `event Action<int> OnSizeLevelChanged` | B 換縮小特效 |
-| `float StateTimeRemaining { get; }` | 這個狀態還剩幾秒切換（B 可做預告特效） |
-| `void BeginIntro()` / `void StartFight()` | 【只給 PhaseManager】 |
+| `int SizeLevel { get; }` | 0–3，血量每降 25% 加一級（飛得更低、體型更小）（A16） |
+| `event Action<int> OnSizeLevelChanged` | B 換縮小特效（A16） |
+| `float StateTimeRemaining { get; }` | 這個狀態還剩幾秒切換（B 可做預告特效）。A14 地面不切換，固定 0 |
+| `void BeginIntro()` | 【只給 PhaseManager】進入第三階段時：Inactive → Intro |
+| `void StartFight()` | 【只給 PhaseManager】規則視窗關掉後：移到 `_groundPoint`（有設定的話）、開始冒煙、任務提示「捏熄吸菸者的菸，打倒大煙怪！」→ Ground。只在 Intro 有效 |
 
-- 開打時先在**天上**；地面 8 秒、天上 12 秒輪流。
-- 最後一位吸菸 NPC 被捏熄：BOSS 立刻降到地面 → `Final`（永久在地面、不回血、不吐菸圈菸炮、改物理攻擊；自己的 7 公尺煙霧保留）。
-- 收到 `GameManager.OnPhase3Retry` 自己重設成 `Inactive`、滿血。
+- **Inactive、Intro：不攻擊、不受傷、不冒煙**（SmokeSource.IsEmitting = false）。
+- A14：開打直接進入 Ground，**一直停在地面**。【A16】開打先在天上；地面 8 秒、天上 12 秒輪流。
+- 在地面時根物件**水平轉向玩家**（Inspector `_turnSpeed`，預設每秒 360 度）；開打前、被打倒後、暫停中不轉。B 的模型跟著根物件轉，模型的正面請朝 +Z。
+- 最後一位吸菸 NPC 被捏熄：BOSS 立刻降到地面 → `Final`（永久在地面、不回血、不吐菸圈、改物理攻擊；自己的 7 公尺煙霧保留）（A16）。
+- **打倒時（BossHealth 歸零）的順序**：`BossAttack.StopAndClearAll()`（停止攻擊、移除場上菸圈，不觸發口嚼錠特效）→ 停止冒煙 → 清掉 `Boss` 任務提示 → `OnStateChanged(Defeated)` → `GameManager.NotifyBossDefeated()`。
+- 遊戲暫停（Esc）、「暫停計時」中：BOSS 的狀態計時、吐菸圈、菸圈飛行全部停止（菸圈停在空中）。
+- 收到 `GameManager.OnPhase3Retry` 自己重設成 `Inactive`、滿血（A19）。
 
-### `BossHealth`（實作 `IHittable`）
+### `BossHealth`（實作 `IHittable`、🆕A14 `IBossDamageable`）
 | 成員 | 說明 |
 |---|---|
 | `static BossHealth Instance` | |
 | `float CurrentHp { get; }` / `float MaxHp { get; }` | 預設 150 |
 | `bool IsDefeated { get; }` | |
-| `event Action<float, float> OnBossHpChanged` | 參數：目前、最大 → **C 的 BOSS 血條**（A11 起淨化進度不跟血量連動） |
-| `event Action<float, DamageSource> OnBossDamaged` | 參數：傷害、來源 → B 受擊特效 |
-| `event Action OnBossDefeated` | |
-| `void TakeDamage(float amount, DamageSource source)` | 噴霧、開發者工具。🆕A13 **BossHealth 要實作 `IBossDamageable`**（A14） |
-| `TakeHit(int)` | 近戰：每下 3；BOSS 在天上時無效 |
+| `event Action<float, float> OnBossHpChanged` | 參數：目前、最大 → **C 的 BOSS 血條**（受傷、回血都會觸發；淨化進度不跟血量連動） |
+| `event Action<float, DamageSource> OnBossDamaged` | 參數：實際扣掉的血量、來源（`PlayerMelee` 近戰／`Spray` 噴霧／`Dev`）→ B 依來源播不同的受擊特效 |
+| `event Action OnBossDefeated` | 血量歸零時一次（C 血條隱藏；後續由 BossController 處理） |
+| `void TakeDamage(float amount, DamageSource source)` | 噴霧 `(7.5, Spray)`（數值在 PlayerEffects）、開發者工具 |
+| `TakeHit(int)` | 近戰：每下 Inspector `_meleeDamage`（預設 3），來源 `PlayerMelee`；BOSS 在天上時無效 |
+| 🆕A14 `void Heal(float amount)` | 回血（不超過上限）。A16 的自動回血使用 |
 
-- 回血：地面 = 抽菸人數 × 1／秒；天上 = 1 + 抽菸人數 × 1／秒；Final 不回血。
+- **不受傷的時機**：BOSS 狀態是 Inactive／Intro／Defeated、遊戲不是 Playing、「暫停計時」中。
+- 回血：地面 = 抽菸人數 × 1／秒；天上 = 1 + 抽菸人數 × 1／秒；Final 不回血（A16）。
 
 ### `BossAttack`
 | 成員 | 說明 |
 |---|---|
-| `event Action<Vector3, Vector3> OnSmokeRingFired` | 參數：起點、方向（地面時每 2 秒） |
-| `event Action<Vector3, float> OnCannonFired` | 參數：落點、幾秒後落地 → **B 在落點顯示預警** |
-| `event Action<Vector3> OnCannonLanded` | 落地（之後留下 3 秒煙霧區） |
-| `event Action OnMeleeWindup` / `event Action<bool> OnMeleeSwing` | 物理攻擊：預備動作開始、揮下（參數：有沒有打中） |
-| ~~`event Action<Vector3, float> OnSmokeCleared`~~ | ✅A13 刪除，改用 `ClearableSmoke.OnCleared` |
+| `event Action<Vector3, Vector3> OnSmokeRingFired` | 參數：起點、方向（已正規化）。**每吐一個菸圈觸發**（地面；A16 起天上也是）→ B 特效、音效 |
+| 🆕A14 `int ActiveRingCount { get; }` | 場上還在飛的菸圈數量（開發者工具用） |
+| 🆕A14 `float SmokeRingCooldownRemaining { get; }` | 距離下一個菸圈幾秒（開發者工具用） |
+| 🆕A14 `void StopAndClearAll()` | 【只給 BossController】打倒時移除場上所有菸圈 |
+| ⚠️A16 刪除 `event Action<Vector3, float> OnCannonFired` / `event Action<Vector3> OnCannonLanded` | **A14 決定菸炮取消**（改成天上也吐菸圈）。A16 改成煙霧區事件，**B 不要接這兩個** |
+| `event Action OnMeleeWindup` / `event Action<bool> OnMeleeSwing` | 物理攻擊：預備動作開始、揮下（參數：有沒有打中）（A16） |
 | `int ClearSmokeInRadius(Vector3 center, float radius)` | A13 起等於 `ClearableSmoke.ClearInRadius`（保留相容） |
 
-- 菸圈、菸炮、煙霧區是 A 的小腳本（`BossSmokeRing`、`BossCannonShell`、`BossSmokeZone`，同資料夾）＋ Prefab。**B 可以換 Prefab 裡的外觀**（不要改腳本、不要刪碰撞體）。
-- 🆕A13 **菸圈與煙霧區要實作 `IClearableSmoke` 並登記到 `ClearableSmoke`**（A14、A16）；還在空中飛的菸炮不要登記（不清除）。
+- 小菸圈（A14）：BOSS 在地面時，進入地面 2 秒後吐第一個，之後每 2 秒一個。發射點 `RingMuzzle`，**朝「發射當下」玩家胸口（腳底往上 1 公尺）直線飛，不追蹤**。
+- 🆕A14 **菸圈和菸炮是同一種東西**：A16 起 BOSS 在天上也吐同一種菸圈（同樣 8 HP、每 2 秒，從天上的高度斜斜往下飛）；**天上吐的菸圈落到地面時留下 3 秒煙霧區**（`BossSmokeZone`，是煙霧來源、可被口嚼錠清除）。
+- 菸圈、煙霧區是 A 的小腳本（`BossSmokeRing`、A16 的 `BossSmokeZone`，同資料夾）＋ Prefab。**B 只換 Visual Prefab**。
+- **只有煙霧區實作 `IClearableSmoke`**（A16）；A14 決定菸圈不實作（口嚼錠不能清除菸圈）。
+
+### 🆕A14 `BossSmokeRing` `Scripts/Boss/BossSmokeRing.cs`（擁有者：A；**不**實作 `IClearableSmoke`）
+| 成員 | 說明 |
+|---|---|
+| `void Launch(Vector3 direction, float speed, float damage, float lifetime, float hitRadius, Transform owner, LayerMask obstacleMask, bool leaveZoneOnGround, Action<BossSmokeRing> onEnded)` | 【只給 BossAttack】發射 |
+| `void Despawn()` | 【只給 BossAttack】直接移除（BOSS 被打倒） |
+
+- 命中玩家（命中半徑 0.8 內碰到玩家的 CharacterController）→ `PlayerHealth.TakeDamage(8, DamageSource.SmokeRing)` → 消失。
+- 撞到牆、地面等實心物件（Trigger、BOSS 自己、玩家不算）→ 消失；超過存在時間（4 秒）→ 消失。吸菸 NPC 等實心物件也會擋住菸圈。
+- **菸圈本身不是煙霧來源**（不增加暴露值），**口嚼錠也不能清除菸圈**。
+- 不使用物件池（場上最多約 2 個，直接生成、刪除）。
 
 ### 🆕A13 口嚼錠清除：`IClearableSmoke` ＋ `ClearableSmoke`（`Scripts/Boss/`，擁有者：A）
 ```csharp
@@ -537,7 +582,7 @@ public static class ClearableSmoke {
     public static int  ClearInRadius(Vector3 center, float radius); // 【只給 PlayerEffects、BossAttack】回傳清掉幾個
 }
 ```
-- 實作者：A14 的 `BossSmokeRing`、A16 的 `BossSmokeZone`、DevTools 的 `FakeSmokeRing`。
+- 實作者：A16 的 `BossSmokeZone`、DevTools 的 `FakeSmokeRing`（模擬煙霧區，測試口嚼錠半徑用，保留）。**A14 決定 `BossSmokeRing` 不實作**（口嚼錠不能清除菸圈）。
 
 ## 15. 🆕 `SmokerNPC` `Scripts/Boss/SmokerNPC.cs`（擁有者：A，A16 完成）
 
@@ -640,9 +685,10 @@ public static class ScoreCalculator {
 - 淡出 → `PlayerController.TeleportTo(...)` → 淡入；期間 `GameManager.SetTimerPaused("Teleport", true)`、`SetControlLock("Teleport", true)`。
 
 ### BOSS 外觀、登場與結局（擁有者：B，B13、B15–B17）
+- 🆕A14 **B 只改 `Prefabs/Boss/BossVisual.prefab`、`SmokeRingVisual.prefab`**（第 14 節 Prefab 結構）；B13 把 `Boss.prefab` 放進 GameScene、設定 `_groundPoint`。
 - 監聽 `PhaseManager.OnBossIntroRequested` → 播登場（BOSS 衝上天、吸菸者從吸菸室散開）→ `PhaseManager.NotifyBossIntroFinished()`。重新挑戰會再播一次。
-- 監聽 `BossController.OnStateChanged`、`OnSizeLevelChanged`、`BossHealth.OnBossDamaged`、`BossAttack` 的事件 → 播動畫、特效。
-- 監聽 `PhaseManager.OnEndingRequested` → BOSS 遺言（`DialogueUI`）→ 綠色城市 → `PhaseManager.NotifyEndingFinished()`。
+- 監聽 `BossController.OnStateChanged`、`OnSizeLevelChanged`、`BossHealth.OnBossDamaged`（依 `DamageSource` 分近戰／噴霧）、`BossAttack.OnSmokeRingFired` → 播動畫、特效。**菸炮已取消**，不要接 `OnCannonFired`／`OnCannonLanded`。
+- 監聽 `PhaseManager.OnEndingRequested` → BOSS 遺言（`DialogueUI`）→ 綠色城市 → `PhaseManager.NotifyEndingFinished()`。⚠️A14 **一監聽就一定要在播完時呼叫 `NotifyEndingFinished()`**，不然遊戲會停在結局、不會結算（沒有人監聽時 PhaseManager 會直接結算）。
 - 過場鏡頭用 `PlayerController.SetCameraOverride`；期間 `SetTimerPaused("Cutscene", true)`、`SetControlLock("Cutscene", true)`。
 
 ### 🆕 `DialogueUI` `Scripts/UI/DialogueUI.cs`（擁有者：C，C8）
@@ -751,22 +797,21 @@ public static class ScoreCalculator {
     ⇒ OnPurificationMilestone(60)（若還沒達到）
     → Phase3Checkpoint.SaveFirstEntry(快照)（只有第一次進入時存；第 22 節）
     → Phase = Phase3 ⇒ OnPhaseChanged(Phase3)
-    →（A14）BossController.BeginIntro() ⇒ OnStateChanged(Intro)
+    → BossController.BeginIntro() ⇒ OnStateChanged(Intro)（不攻擊、不受傷、不冒煙）
     ⇒ OnBossIntroRequested                                        （B 聽）
 [B] 登場演出（SetTimerPaused/SetControlLock "Cutscene"、SetCameraOverride）
     → PhaseManager.NotifyBossIntroFinished()
 [A] PhaseManager ⇒ OnRulesIntroRequested                          （C 聽）
 [C] RulesIntroWindow 顯示 → 玩家點擊 → PhaseManager.NotifyRulesIntroClosed()
 [A] PhaseManager ⇒ OnBossFightStarted（C 血條顯示）
-    → BossController.StartFight() ⇒ OnStateChanged(Sky)；SmokerNPC 全部開始抽菸
+    → BossController.StartFight() ⇒ OnStateChanged(Ground)（A14；A16 改成先 Sky）；開始冒煙；（A16）SmokerNPC 全部開始抽菸
 ```
 
 ### c. BOSS 戰 → 最終局面 → 打倒 → 結局 → 結算（含重新挑戰）
 ```
 [A] BossController：Sky 12 秒 ⇄ Ground 8 秒 ⇒ OnStateChanged（B 起飛、降落）
-    Sky：BossAttack 每 4 秒菸炮 ⇒ OnCannonFired（B 預警）⇒ OnCannonLanded（煙霧區 3 秒）
-    Ground：每 2 秒菸圈 ⇒ OnSmokeRingFired
-    命中玩家 → PlayerHealth.TakeDamage(15 或 8, 來源) ⇒ OnDamaged
+    Ground、Sky：每 2 秒菸圈 ⇒ OnSmokeRingFired（A14 決定菸炮取消，天上也吐菸圈；天上的菸圈落地留下 3 秒煙霧區，A16）
+    命中玩家 → PlayerHealth.TakeDamage(8, SmokeRing) ⇒ OnDamaged
     BossHealth 每秒回血（依 SmokerNPC.SmokingCount）⇒ OnBossHpChanged（C 血條；淨化進度不變，停在 60%）
     血量每降 25% ⇒ OnSizeLevelChanged（變低、變小）
 [玩家] 近戰（地面）→ BossHealth.TakeHit ⇒ OnBossDamaged
@@ -776,10 +821,12 @@ public static class ScoreCalculator {
 [A] SmokingCount = 0 → BossController 立刻降落 ⇒ OnStateChanged(Final)
     不回血、不吐煙；玩家 3 公尺內每 3 秒物理攻擊 ⇒ OnMeleeWindup ⇒ OnMeleeSwing
     TaskHint「打倒大煙怪！」
-[A] BossHealth 歸零 ⇒ OnBossDefeated ⇒ OnStateChanged(Defeated)
-    →（A14）GameManager.NotifyBossDefeated()：淨化 = 1000、停止用時（暫停計時 key "BossDefeated"）、記下 HP
+[A] BossHealth 歸零 ⇒ OnBossDefeated（C 血條隱藏）
+    → BossController：停止攻擊、清掉場上菸圈、停止冒煙 ⇒ OnStateChanged(Defeated)
+    → GameManager.NotifyBossDefeated()：淨化 = 1000、停止用時（暫停計時 key "BossDefeated"）、記下 HP
     PhaseManager ⇒ OnPurificationMilestone(100) → Phase = Ending ⇒ OnPhaseChanged(Ending) ⇒ OnEndingRequested（B 聽）
 [B] 結局演出（BOSS 遺言、綠色城市）→ PhaseManager.NotifyEndingFinished()
+    （沒有人監聽 OnEndingRequested 時，PhaseManager 直接進下一行）
 [A] → GameManager.FinishWithVictory() ⇒ OnGameEnded(result)（C 結算畫面）
 
 失敗：教學以外的任何時候 HP 歸零 ⇒ PlayerHealth.OnDied → GameManager 結算 ⇒ OnGameEnded
@@ -823,6 +870,8 @@ public static class ScoreCalculator {
 | `ExposureSystem.RiseMultiplier`、`IsVisualSuppressed` | ✅A13 已刪除（`VisualExposure` 保留，永遠等於 `Exposure`） | — |
 | `PlayerEffects.ApplyItem`、`OnEffectStarted`、`OnEffectEnded` | ✅A13 已刪除 | — |
 | `BossAttack.OnSmokeCleared` | ✅A13 已刪除，改用 `ClearableSmoke.OnCleared` | — |
+| 菸炮（`BossAttack.OnCannonFired`、`OnCannonLanded`、Inspector 菸炮欄位、`BossCannonShell`） | A14 決定取消（天上也吐菸圈）；事件還在但不會觸發 | A16 刪除，改成煙霧區事件 |
+| DevTools `FakeBoss` | A14 改用真的 BOSS；A14 選單已從 TestScene_A 移除物件 | A 在 Unity Project 視窗刪除 `FakeBoss.cs` |
 | `PlayerController.SetControlEnabled` | 保留（等於 key "Default"） | — |
 | `SmokeMonster.ProgressValue` | B 的檔案，A 不標記 | B10 改成 `PurificationUnits` |
 | `EscortNPC`、`SafeZone`、`GuideLine` | 刪除 | B7（在 Unity Project 視窗） |
@@ -852,12 +901,12 @@ public static class ScoreCalculator {
 | 貼片回血 | 30 | PlayerEffects |
 | 口嚼錠半徑 | 15 | PlayerEffects |
 | 噴霧傷害／冷卻／最遠距離 | 7.5／1.5／30【暫定】 | PlayerEffects |
-| BOSS 最大血量／近戰受傷 | 150／3 | BossHealth |
+| BOSS 最大血量／近戰受傷 | 150／3 | BossHealth（噴霧 7.5 在 PlayerEffects） |
 | 回血：地面每人／天上基本／天上每人 | 1／1／1 | BossHealth |
 | 地面停留／天上停留 | 8／12 | BossController |
 | 天上高度（4 級）／體型（4 級） | 12、10、8、6 公尺【暫定】／1、0.85、0.7、0.55【暫定】 | BossController |
-| 菸圈：間隔／傷害／速度／存在時間／命中半徑 | 2／8／6／4／0.8【後三個暫定】 | BossAttack |
-| 菸炮：間隔／傷害／飛行時間／命中半徑／煙霧區時間 | 4／15／1.5／1.5／3【飛行、半徑暫定】 | BossAttack |
+| 菸圈（地面、天上共用）：間隔／傷害／速度／存在時間／命中半徑／瞄準高度 | 2／8／6／4／0.8／1【後四個暫定】 | BossAttack |
+| 天上菸圈落地的煙霧區：時間／半徑 | 3／3【半徑暫定】 | BossAttack（A16） |
 | 物理攻擊：距離／間隔／傷害／預備時間 | 3／3／10／0.6【暫定】 | BossAttack |
 | QTE：距離／角度／次數／時間 | 2／90／5／2 | SmokerNPC |
 | 用時分：滿分時間／每 30 秒扣 10（依秒數比例、四捨五入到整數） | 480／30／10 | ScoreCalculator（static，用常數；A20 再決定要不要搬到 Inspector） |

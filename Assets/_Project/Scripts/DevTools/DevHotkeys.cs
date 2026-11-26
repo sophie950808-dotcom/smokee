@@ -22,10 +22,13 @@ public class DevHotkeys : MonoBehaviour
         "F11 空檔剩餘設為 3 秒\n" +
         "F9 扣 20 HP　F10 回 10 HP\n" +
         "1 淨化設為 60%　2 進入第三階段\n" +
-        "3 模擬打倒 BOSS　4 模擬結局播完\n" +
+        "3 直接打倒 BOSS（沒有 BOSS 時模擬）　4 模擬結局播完\n" +
         "── 道具（A13）──\n" +
         "5 給予三種道具（ItemRewards.Grant）\n" +
-        "6 用貼片　7 用口嚼錠　8 用噴霧（瞄準鏡頭中央）";
+        "6 用貼片　7 用口嚼錠　8 用噴霧（瞄準鏡頭中央）\n" +
+        "── BOSS（A14）──\n" +
+        "9 開始 BOSS 戰（跳過登場與規則視窗）　0 BOSS 扣 30 血\n" +
+        "- 玩家無敵 開／關";
 
     [Tooltip("F9 每次扣多少 HP")]
     [SerializeField] private float _devDamage = 20f;
@@ -35,6 +38,9 @@ public class DevHotkeys : MonoBehaviour
 
     [Tooltip("F11 把 40 秒空檔的剩餘時間設成幾秒")]
     [SerializeField] private float _gapSkipSeconds = 3f;
+
+    [Tooltip("0 每次讓 BOSS 扣多少血")]
+    [SerializeField] private float _devBossDamage = 30f;
 
     private PlayerHealth _playerHealth;
     private PlayerEffects _playerEffects;
@@ -109,7 +115,39 @@ public class DevHotkeys : MonoBehaviour
         }
         if (keyboard.digit3Key.wasPressedThisFrame)
         {
-            gameManager.NotifyBossDefeated();
+            BossHealth bossHealth = BossHealth.Instance;
+            if (bossHealth != null)
+            {
+                // 真的把血扣到 0，走正常的打倒流程（BOSS 戰還沒開始時 BossHealth 會擋下並印 Log）
+                bossHealth.TakeDamage(bossHealth.CurrentHp, DamageSource.Dev);
+            }
+            else
+            {
+                Debug.Log("[DevHotkeys] 場景裡沒有 BOSS，改用模擬（直接呼叫 GameManager.NotifyBossDefeated）。", this);
+                gameManager.NotifyBossDefeated();
+            }
+            return;
+        }
+        if (keyboard.digit0Key.wasPressedThisFrame)
+        {
+            if (BossHealth.Instance != null)
+            {
+                BossHealth.Instance.TakeDamage(_devBossDamage, DamageSource.Dev);
+            }
+            else
+            {
+                Debug.LogWarning("[DevHotkeys] 場景裡沒有 BOSS，0 無效。請執行選單 Tools/Smokee/A - A14 放置 BOSS 戰測試區。", this);
+            }
+            return;
+        }
+        if (keyboard.minusKey.wasPressedThisFrame)
+        {
+            PlayerHealth playerHealth = GetPlayerHealth();
+            if (playerHealth != null)
+            {
+                playerHealth.DevInvincible = !playerHealth.DevInvincible;
+                Debug.Log("[DevHotkeys] 玩家無敵：" + (playerHealth.DevInvincible ? "開" : "關"), this);
+            }
             return;
         }
         if (HandleItemKeys(keyboard))
@@ -122,7 +160,8 @@ public class DevHotkeys : MonoBehaviour
             if (keyboard.f1Key.wasPressedThisFrame || keyboard.f2Key.wasPressedThisFrame
                 || keyboard.f3Key.wasPressedThisFrame || keyboard.f4Key.wasPressedThisFrame
                 || keyboard.f8Key.wasPressedThisFrame || keyboard.f11Key.wasPressedThisFrame
-                || keyboard.digit2Key.wasPressedThisFrame || keyboard.digit4Key.wasPressedThisFrame)
+                || keyboard.digit2Key.wasPressedThisFrame || keyboard.digit4Key.wasPressedThisFrame
+                || keyboard.digit9Key.wasPressedThisFrame)
             {
                 Debug.LogWarning("[DevHotkeys] 場景裡沒有 PhaseManager，這個按鍵無效。請執行選單 Tools/Smokee/A - A11 設定 TestScene_A。", this);
             }
@@ -161,6 +200,10 @@ public class DevHotkeys : MonoBehaviour
         else if (keyboard.digit4Key.wasPressedThisFrame)
         {
             phaseManager.NotifyEndingFinished();
+        }
+        else if (keyboard.digit9Key.wasPressedThisFrame)
+        {
+            phaseManager.DevStartBossFight();
         }
     }
 
