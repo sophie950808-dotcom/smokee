@@ -28,7 +28,11 @@ public class DevHotkeys : MonoBehaviour
         "6 用貼片　7 用口嚼錠　8 用噴霧（瞄準鏡頭中央）\n" +
         "── BOSS（A14）──\n" +
         "9 開始 BOSS 戰（跳過登場與規則視窗）　0 BOSS 扣 30 血\n" +
-        "- 玩家無敵 開／關";
+        "- 玩家無敵 開／關\n" +
+        "── 拒絕幫忙（A15）──\n" +
+        "[ 開始拒絕效果　] 結束拒絕效果\n" +
+        "\\ 在玩家前方生成一隻菸怪\n" +
+        "= 重新開始（重新載入場景，和暫停選單的「重新開始」相同）";
 
     [Tooltip("F9 每次扣多少 HP")]
     [SerializeField] private float _devDamage = 20f;
@@ -42,8 +46,15 @@ public class DevHotkeys : MonoBehaviour
     [Tooltip("0 每次讓 BOSS 扣多少血")]
     [SerializeField] private float _devBossDamage = 30f;
 
+    [Tooltip("\\ 鍵生成的菸怪 Prefab（A15 選單會自動拖入 SmokeMonster_Small）")]
+    [SerializeField] private GameObject _devMonsterPrefab;
+
+    [Tooltip("\\ 鍵生成在玩家前方幾公尺")]
+    [SerializeField] private float _devMonsterSpawnDistance = 3f;
+
     private PlayerHealth _playerHealth;
     private PlayerEffects _playerEffects;
+    private PlayerController _playerController;
 
     private void Update()
     {
@@ -51,6 +62,14 @@ public class DevHotkeys : MonoBehaviour
         Keyboard keyboard = Keyboard.current;
         if (gameManager == null || keyboard == null || !gameManager.DevMode)
         {
+            return;
+        }
+
+        // A15：= 重新開始（任何狀態都可以），測試重新載入場景後狀態有沒有殘留
+        if (keyboard.equalsKey.wasPressedThisFrame)
+        {
+            Debug.Log("[DevHotkeys] 重新開始（GameManager.RestartToOpening）。", this);
+            gameManager.RestartToOpening();
             return;
         }
 
@@ -154,6 +173,11 @@ public class DevHotkeys : MonoBehaviour
         {
             return;
         }
+        if (keyboard.backslashKey.wasPressedThisFrame)
+        {
+            SpawnDevMonster();
+            return;
+        }
 
         if (phaseManager == null)
         {
@@ -161,7 +185,8 @@ public class DevHotkeys : MonoBehaviour
                 || keyboard.f3Key.wasPressedThisFrame || keyboard.f4Key.wasPressedThisFrame
                 || keyboard.f8Key.wasPressedThisFrame || keyboard.f11Key.wasPressedThisFrame
                 || keyboard.digit2Key.wasPressedThisFrame || keyboard.digit4Key.wasPressedThisFrame
-                || keyboard.digit9Key.wasPressedThisFrame)
+                || keyboard.digit9Key.wasPressedThisFrame
+                || keyboard.leftBracketKey.wasPressedThisFrame || keyboard.rightBracketKey.wasPressedThisFrame)
             {
                 Debug.LogWarning("[DevHotkeys] 場景裡沒有 PhaseManager，這個按鍵無效。請執行選單 Tools/Smokee/A - A11 設定 TestScene_A。", this);
             }
@@ -204,6 +229,14 @@ public class DevHotkeys : MonoBehaviour
         else if (keyboard.digit9Key.wasPressedThisFrame)
         {
             phaseManager.DevStartBossFight();
+        }
+        else if (keyboard.leftBracketKey.wasPressedThisFrame)
+        {
+            phaseManager.DevSetRefusal(true);
+        }
+        else if (keyboard.rightBracketKey.wasPressedThisFrame)
+        {
+            phaseManager.DevSetRefusal(false);
         }
     }
 
@@ -249,6 +282,42 @@ public class DevHotkeys : MonoBehaviour
                       + (result == ItemUseResult.Consumed ? "（背包應該減 1）" : "（背包不扣）"), this);
         }
         return true;
+    }
+
+    /// <summary>A15：在玩家前方生成一隻菸怪（測試「拒絕期間新出現的菸怪也套用目前倍率」）。</summary>
+    private void SpawnDevMonster()
+    {
+        if (_devMonsterPrefab == null)
+        {
+            Debug.LogWarning("[DevHotkeys] 沒有設定 \\ 鍵的菸怪 Prefab。請執行選單 Tools/Smokee/A - A15 放置拒絕幫忙測試區。", this);
+            return;
+        }
+        if (_playerController == null)
+        {
+            _playerController = FindFirstObjectByType<PlayerController>();
+        }
+        if (_playerController == null)
+        {
+            Debug.LogWarning("[DevHotkeys] 場景裡找不到 PlayerController，\\ 無效。", this);
+            return;
+        }
+
+        Transform player = _playerController.transform;
+        Vector3 forward = player.forward;
+        forward.y = 0f;
+        if (forward.sqrMagnitude < 0.0001f)
+        {
+            forward = Vector3.forward;
+        }
+        Vector3 position = player.position + forward.normalized * _devMonsterSpawnDistance;
+        GameObject monster = Instantiate(_devMonsterPrefab, position, Quaternion.identity);
+        monster.name = _devMonsterPrefab.name + "_Dev";
+
+        SmokeSource source = monster.GetComponent<SmokeSource>();
+        string state = source != null
+            ? "實際半徑 " + source.Radius.ToString("0.0#") + "，無法消除：" + (source.IsIndestructible ? "是" : "否")
+            : "沒有 SmokeSource";
+        Debug.Log("[DevHotkeys] 生成菸怪 " + monster.name + "（" + state + "）。", this);
     }
 
     /// <summary>第一次用到時才在場景裡找 PlayerEffects；找不到時印警告。</summary>

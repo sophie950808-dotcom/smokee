@@ -7,6 +7,7 @@ using UnityEngine;
 /// 顯示：狀態、路線、階段、故事事件、空檔倒數、淨化（整數與百分比）、用時、計時是否暫停（與申請的 key）、
 /// 目前任務提示、淨化里程碑、第三階段快照、HP（含無敵）、暴露值、互動目標與 QTE、三種道具狀態與噴霧冷卻、
 /// BOSS 狀態／血量／場上菸圈數量／下一個菸圈倒數；
+/// （A15）拒絕效果是否進行中、菸怪煙霧倍率、下次擴大倒數、菸怪數量與其中無法消除的數量；
 /// 遊戲結束時另外顯示完整的 ScoreResult。
 /// 找不到 PlayerHealth／ExposureSystem／PhaseManager／PlayerInteractor／PlayerEffects 時該欄顯示 N/A。
 /// </summary>
@@ -81,6 +82,7 @@ public class DevOverlay : MonoBehaviour
             "第三階段快照：" + (Phase3Checkpoint.HasSnapshot ? Phase3Checkpoint.Snapshot.ToString() : "（無）") + "\n" +
             "HP：" + hpText + "\n" +
             "暴露值：" + exposureText + "\n" +
+            GetRefusalText() +
             GetInteractText() +
             GetItemText() +
             GetBossText() +
@@ -126,6 +128,60 @@ public class DevOverlay : MonoBehaviour
 
         return "階段：" + phaseManager.CurrentPhase + "　" + eventText + "　空檔倒數：" + gapText + "\n" +
                "藏寶圖：" + (phaseManager.HasTreasureMap ? "有" : "無") + "　里程碑：" + milestones + "\n";
+    }
+
+    /// <summary>
+    /// A15 拒絕效果：是否進行中、暴露值統一上升速度、等台詞中、補生成菸怪數量與下一隻倒數、
+    /// 菸怪數量與無法消除數量（「菸怪」= 受拒絕影響（AffectedByRefusal）的煙霧來源，假菸怪也算）。
+    /// </summary>
+    private string GetRefusalText()
+    {
+        int monsterCount = 0;
+        int indestructibleCount = 0;
+        var sources = SmokeSource.All;
+        for (int i = 0; i < sources.Count; i++)
+        {
+            SmokeSource source = sources[i];
+            if (source == null || !source.AffectedByRefusal)
+            {
+                continue;
+            }
+            monsterCount++;
+            if (source.IsIndestructible)
+            {
+                indestructibleCount++;
+            }
+        }
+
+        PhaseManager phaseManager = PhaseManager.Instance;
+        bool refused = phaseManager != null && phaseManager.IsHelpRefused;
+
+        string riseText = _exposureSystem != null
+            ? (_exposureSystem.IsRefusalRising ? "每秒 +" + _exposureSystem.RefusalRiseRate.ToString("0.##") + "（全場統一）" : "一般")
+            : "N/A";
+
+        RefusalMonsterSpawner spawner = RefusalMonsterSpawner.Instance;
+        string spawnerText;
+        if (spawner == null)
+        {
+            spawnerText = "N/A（沒有 RefusalMonsterSpawner）";
+        }
+        else
+        {
+            spawnerText = spawner.ActiveCount + " / " + spawner.MaxMonsters + " 隻";
+            if (refused)
+            {
+                float next = spawner.NextSpawnRemaining;
+                spawnerText += "，下一隻 " + (spawner.ActiveCount >= spawner.MaxMonsters ? "已滿" : next.ToString("F1") + " 秒");
+            }
+        }
+
+        return "拒絕效果：" + (SmokeSource.RefusalActive ? "進行中" : "沒有")
+               + (phaseManager != null && phaseManager.IsWaitingRefusalLine ? "（等 NPC 台詞講完）" : "")
+               + "　暴露值：" + riseText
+               + "　補生成：" + spawnerText + "\n"
+               + "　菸怪 " + monsterCount + " 隻（無法消除 " + indestructibleCount + " 隻）"
+               + "　煙霧來源共 " + sources.Count + " 個\n";
     }
 
     /// <summary>互動目標與 QTE 狀態。</summary>

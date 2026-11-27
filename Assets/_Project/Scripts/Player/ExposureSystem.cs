@@ -7,6 +7,7 @@ using UnityEngine;
 /// - 在「正在冒煙」的 SmokeSource 半徑內：每秒上升 10 ×（1 − 距離 ÷ 半徑）；
 ///   同時在多個範圍內時，取上升速度最大的那一個（不加總）。
 /// - 不在任何範圍內：每秒下降 3。
+/// - 【A15】拒絕幫忙期間：不管在不在煙霧裡，整個場景統一每秒上升 _refusalRiseRate（預設 2）。
 /// - 距離只算水平距離（忽略高度），玩家跳躍時數值不會亂跳。
 /// - 只在 GameManager 為 Opening 或 Playing 時計算；場景裡沒有 GameManager 時照樣計算（方便單獨測試）。
 /// - SmokeSeconds（吸入二手菸量）只在 Playing（倒數中）累加，開場死巷裡的時間不算；
@@ -23,6 +24,10 @@ public class ExposureSystem : MonoBehaviour
 
     [Tooltip("不在任何煙霧範圍內時，每秒下降多少")]
     [SerializeField] private float _decayRate = 18f;
+
+    [Header("拒絕幫忙（A15）")]
+    [Tooltip("拒絕幫忙期間，不管在不在煙霧裡，整個場景統一每秒上升多少（取代範圍內上升與範圍外下降）。2 = 約 50 秒從 0 到 100")]
+    [SerializeField] private float _refusalRiseRate = 2f;
 
     [Header("門檻")]
     [Tooltip("暴露值大於或等於這個數字時顯示警示文字")]
@@ -52,6 +57,12 @@ public class ExposureSystem : MonoBehaviour
 
     /// <summary>累計待在（正在冒煙的）煙霧範圍內的秒數。只算倒數中（Playing），開場時間不算。</summary>
     public float SmokeSeconds => _smokeSeconds;
+
+    /// <summary>A15：拒絕幫忙期間整個場景統一的每秒上升量（Inspector 設定）。</summary>
+    public float RefusalRiseRate => _refusalRiseRate;
+
+    /// <summary>A15：現在是否正在用「拒絕幫忙」的統一上升速度。</summary>
+    public bool IsRefusalRising => IsRefusalActive();
 
     /// <summary>暴露值改變時觸發。參數：目前暴露值。</summary>
     public event Action<float> OnExposureChanged;
@@ -88,7 +99,16 @@ public class ExposureSystem : MonoBehaviour
             _smokeSeconds += deltaTime;
         }
 
-        float change = inSmoke ? riseSpeed : -_decayRate;
+        // A15：拒絕幫忙期間，整個場景統一用同一個上升速度（煙霧內外都一樣）
+        float change;
+        if (IsRefusalActive())
+        {
+            change = _refusalRiseRate;
+        }
+        else
+        {
+            change = inSmoke ? riseSpeed : -_decayRate;
+        }
         SetExposure(_exposure + change * deltaTime);
     }
 
@@ -133,6 +153,13 @@ public class ExposureSystem : MonoBehaviour
         }
 
         return gameManager.State == GameState.Opening || gameManager.State == GameState.Playing;
+    }
+
+    /// <summary>A15：玩家是否拒絕幫忙中（PhaseManager.IsHelpRefused）；沒有 PhaseManager 時 false。</summary>
+    private static bool IsRefusalActive()
+    {
+        PhaseManager phaseManager = PhaseManager.Instance;
+        return phaseManager != null && phaseManager.IsHelpRefused;
     }
 
     /// <summary>是否在倒數中（Playing）；沒有 GameManager 時視為是（方便單獨測試）。</summary>
