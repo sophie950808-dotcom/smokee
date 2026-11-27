@@ -28,7 +28,13 @@
 
 - **菸怪**（B10、B12）：`SmokeMonster` 實作 `IHittable`；新增 `int PurificationUnits`（整數，1000 = 100%）、`MonsterGroup Group`、`OnDefeated`／`OnAnyDefeated` 事件；被擊敗呼叫 `GameManager.Instance.AddPurification(PurificationUnits)`（舊的 `AddPurificationProgress` 會出現黃色警告，B10 改掉）
   - 生成時用 `PhaseManager.Instance.GetMonsterUnits(group, index)` 設定淨化值（教學 0、第一階段 40、空檔 25、事件 33／33／34）
-  - Awake 時設 `SmokeSource.AffectedByRefusal = true`；`TakeHit` 時若 `SmokeSource.IsIndestructible` 為 true → 播「打不掉」回饋、不算次數
+  - **拒絕幫忙（B12，A15 已完成 A 的部分，見 INTERFACES 第 4、11、17 節）**：A15 改版——**煙霧不擴大**；改成拒絕期間暴露值全場每秒 +2、A 的 `RefusalMonsterSpawner` 每 3 秒在玩家附近補生成菸怪（透明度淡入，接任務後淡出刪除）、NPC 台詞 → 警告文字。全圖無法消除、計時、恢復、換場景清除**都由 A 處理**，B **不用寫計時**（照原本呼叫 `ReportHelpRefused(n)`／`ReportEventAccepted(n)` 就會開始／結束）。B 要做：
+    1. `SmokeMonster.TakeHit` 一開始先檢查 `SmokeSource.IsIndestructible`：true → 播「打不動」回饋（例如彈開、灰色閃一下），**不算這一下**、直接 return
+    2. 監聽 `SmokeSource.OnRefusalStateChanged(bool)` 換「打不掉」的外觀；出生時在 **Awake／OnEnable**（不要在 Start，會和 A 的淡入互相蓋掉）讀 `SmokeSource.RefusalActive` 決定初始外觀。**這是 static 事件：OnEnable 加、OnDisable 一定要取消**
+    3. `AffectedByRefusal`：A 的 SmokeSource 看到同物件有 `SmokeMonster` 會自動設成 true，B 可以不設（Awake 設 true 也可以，不衝突）
+    4. GameScene：在 GameManager 物件上加 `RefusalMonsterSpawner`，把 `SmokeMonster_Small.prefab` 拖進「菸怪 Prefab」
+    5. 跟隨 NPC：監聽 `PhaseManager.OnRefusalNpcLine(事件編號, 台詞)`，讓 NPC 說這句（對話框或頭上文字），**講完一定要呼叫 `PhaseManager.Instance.NotifyRefusalNpcLineFinished()`**，A 才會顯示警告文字
+    6. 不要改 `SmokeSource` 的半徑或倍率來做外觀；煙霧不擴大，**不用**做粒子縮放
   - 生成時機：監聽 `PhaseManager.OnPhaseChanged(Phase1)`（5 隻）、`OnEventGapStarted`（每次 2 隻）；故事地點 3 隻由故事事件生成
 - **開場**（B7）：`OpeningSequence` 監聽 `RouteManager.Instance.OnRouteChosen`
   - 接受路線：隨機一位路人演出，結束呼叫 `RouteManager.Instance.NotifyOpeningFinished()`（重新載入由 RouteManager 處理，**不要自己 `LoadScene`**）
@@ -37,7 +43,8 @@
 - **新手教學發光**：監聽 `TutorialManager.OnStepChanged`，讀 `MoveTarget`、`TutorialMonster`；`GameScene` 的 TutorialManager 欄位由 B 拖入
 - **故事事件**（B9、B11、B12）：B 建立 `StoryEventDirector`、`StoryEventData`（ScriptableObject）、`StoryTeleporter`（名稱、成員見 INTERFACES 第 17 節）
   - 監聽 `PhaseManager.OnStoryEventRequested(n)` → NPC 跑來求救；回報用 `PhaseManager.ReportEventAccepted／ReportHelpRefused／ReportEventCompleted(n)`
-  - 拒絕後 NPC 跟著玩家、實作 `IInteractable`，按 E **再跳一次「要幫忙嗎？」**
+  - 拒絕後 NPC 跟著玩家、實作 `IInteractable`，按 E **再跳一次「要幫忙嗎？」**；再拒絕一次時一樣呼叫 `ReportHelpRefused(n)`（暴露值、補生成繼續、不重新開始；台詞會再出現一次）
+  - NPC 跟隨可以監聽 `PhaseManager.OnHelpRefusedChanged(bool)`；暴露值與菸怪的效果 A 已經處理（見上面「菸怪」）
   - 給道具用 `ItemRewards.Grant(ItemType)`（事件一貼片、事件二口嚼錠；藏寶圖由 PhaseManager 處理）
   - 任務提示用 `TaskHint.SetTask("StoryEvent", 文字)`；對話用 C 的 `DialogueUI.Show(...)`；「要幫忙嗎？」用 C 的 `HelpPromptUI.Show(...)`
   - 傳送用 `PlayerController.TeleportTo(...)`，期間 `GameManager.SetTimerPaused("Teleport", true)`、`PlayerController.SetControlLock("Teleport", true)`

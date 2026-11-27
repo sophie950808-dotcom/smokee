@@ -7,7 +7,8 @@ using UnityEngine;
 /// A 用事件通知 B、C（OnXxx）；B、C 用 ReportXxx／NotifyXxx 方法回報。
 /// 【A11】階段切換、事件順序、40 秒空檔、拒絕狀態、藏寶圖、進入第三階段（含快照）、里程碑、結局 → 勝利已完成。
 /// 【A14】BOSS 登場 → 規則視窗 → BOSS 戰的串接；沒有結局動畫（沒人監聽 OnEndingRequested）時直接勝利結算。
-/// 【A15】拒絕時的煙霧倍率（SmokeSource.SetRefusalState），之後完成。
+/// 【A15】拒絕幫忙：全圖菸怪無法消除（煙霧半徑不擴大）、NPC 台詞 → 警告、換場景時清除拒絕狀態已完成。
+///        補生成菸怪在 RefusalMonsterSpawner、全場景統一的暴露值上升在 ExposureSystem。
 /// </summary>
 public class PhaseManager : MonoBehaviour
 {
@@ -18,7 +19,6 @@ public class PhaseManager : MonoBehaviour
     public const int StoryEventCount = 3;
 
     private const string PhaseHintSource = "Phase";
-    private const string RefusalHintSource = "Refusal";
     private static readonly int[] MilestonePercents = { 20, 60, 100 };
 
     /// <summary>目前這個故事事件進行到哪裡。</summary>
@@ -47,15 +47,20 @@ public class PhaseManager : MonoBehaviour
     [Tooltip("一個事件結束後，幾秒後下一位 NPC 跑來求救（暫停計時期間不倒數）")]
     [SerializeField] private float _eventGapSeconds = 40f;
 
-    [Header("拒絕幫忙（A15 使用）")]
-    [Tooltip("每隔幾秒菸怪煙霧擴大一次")]
-    [SerializeField] private float _refusalGrowInterval = 10f;
+    [Header("拒絕幫忙（A15）")]
+    [Tooltip("拒絕當下（含再拒絕一次），跟著玩家的 NPC 說的話。B 監聽 OnRefusalNpcLine 顯示")]
+    [TextArea]
+    [SerializeField] private string _refusalNpcLine = "再這樣下去，整個城市都要被二手菸淹沒了啦……";
 
-    [Tooltip("每次擴大增加多少倍率（0.1 = 原本的 10%，線性增加）")]
-    [SerializeField] private float _refusalGrowStep = 0.1f;
+    [Tooltip("NPC 講完之後，畫面顯示的警告文字（Toast）")]
+    [TextArea]
+    [SerializeField] private string _refusalWarning = "因為無情地拒絕幫忙，城市煙霧瀰漫……再這樣下去會有生命危險！";
 
-    [Tooltip("最多擴大到幾倍")]
-    [SerializeField] private float _refusalMaxMultiplier = 2f;
+    [Tooltip("警告文字顯示幾秒")]
+    [SerializeField] private float _refusalWarningSeconds = 4f;
+
+    [Tooltip("沒有人監聽 OnRefusalNpcLine 時（B12 接上前），NPC 台詞改用 Toast 顯示幾秒，之後接著顯示警告（暫停計時期間不倒數）")]
+    [SerializeField] private float _fallbackNpcLineSeconds = 3f;
 
     [Header("任務提示文字")]
     [Tooltip("第一階段的任務提示")]
@@ -63,9 +68,6 @@ public class PhaseManager : MonoBehaviour
 
     [Tooltip("進入第二階段時的任務提示")]
     [SerializeField] private string _phase2Hint = "城市中還有很多需要幫助的人，快去看看吧！";
-
-    [Tooltip("拒絕幫忙期間的任務提示（不直接告訴玩家要回去）")]
-    [SerializeField] private string _refusalHint = "煙霧好像越來越濃了……";
 
     [Tooltip("拿到藏寶圖後的任務提示")]
     [SerializeField] private string _treasureMapHint = "到吸菸室旁的寶箱看看";
@@ -77,7 +79,8 @@ public class PhaseManager : MonoBehaviour
     private int _eventGapIndex = -1;
     private float _eventGapRemaining = 0f;
     private bool _isHelpRefused = false;
-    private float _refusalSmokeMultiplier = 1f;
+    private bool _isWaitingRefusalLine = false;
+    private float _fallbackLineRemaining = -1f;
     private bool _hasTreasureMap = false;
     private BossFlowStage _bossFlowStage = BossFlowStage.None;
     private readonly bool[] _milestoneReached = new bool[MilestonePercents.Length];
@@ -102,8 +105,11 @@ public class PhaseManager : MonoBehaviour
     /// <summary>玩家目前是否拒絕幫忙中。</summary>
     public bool IsHelpRefused => _isHelpRefused;
 
-    /// <summary>拒絕期間菸怪的煙霧倍率（1 → 最多 2）。【A15】目前固定 1。</summary>
-    public float RefusalSmokeMultiplier => _refusalSmokeMultiplier;
+    /// <summary>拒絕期間菸怪的煙霧倍率。A15 決定拒絕時煙霧不擴大，固定 1（= SmokeSource.RefusalMultiplier）。</summary>
+    public float RefusalSmokeMultiplier => SmokeSource.RefusalMultiplier;
+
+    /// <summary>【開發者工具用】是否正在等 NPC 講完拒絕台詞（講完才顯示警告）。</summary>
+    public bool IsWaitingRefusalLine => _isWaitingRefusalLine;
 
     /// <summary>是否已經拿到藏寶圖（事件三完成）。</summary>
     public bool HasTreasureMap => _hasTreasureMap;
@@ -125,6 +131,13 @@ public class PhaseManager : MonoBehaviour
 
     /// <summary>拒絕幫忙狀態改變時觸發。true = 開始拒絕（NPC 跟著玩家）；false = 接下任務、恢復。</summary>
     public event Action<bool> OnHelpRefusedChanged;
+
+    /// <summary>
+    /// 拒絕當下（含再拒絕一次）要 NPC 說話時觸發。參數：事件編號、台詞。
+    /// B 讓跟著玩家的 NPC 說這句話，講完呼叫 NotifyRefusalNpcLineFinished()，PhaseManager 才顯示警告。
+    /// 沒有人監聽時，PhaseManager 自己用 Toast 顯示台詞，幾秒後接著顯示警告。
+    /// </summary>
+    public event Action<int, string> OnRefusalNpcLine;
 
     /// <summary>拿到藏寶圖時觸發（寶箱出現、小地圖顯示寶箱）。</summary>
     public event Action OnTreasureMapObtained;
@@ -158,6 +171,9 @@ public class PhaseManager : MonoBehaviour
             return;
         }
         Instance = this;
+
+        // 拒絕狀態放在 SmokeSource 的 static 變數，重新載入場景不會自己清掉 → 新場景一開始先清回初始值
+        SmokeSource.ResetRefusalState();
     }
 
     private void Start()
@@ -200,20 +216,36 @@ public class PhaseManager : MonoBehaviour
 
         if (Instance == this)
         {
+            // 離開場景（重新開始、重新挑戰、回主選單）時清掉拒絕狀態，不留到下一個場景（不觸發事件）
+            SmokeSource.ResetRefusalState();
             Instance = null;
         }
     }
 
     private void Update()
     {
-        if (Instance != this || !_isInEventGap)
+        if (Instance != this || (!_isInEventGap && _fallbackLineRemaining <= 0f))
         {
             return;
         }
 
         GameManager gameManager = GameManager.Instance;
-        // 暫停選單（Paused）、暫停計時（對話、傳送…）期間空檔不倒數
+        // 暫停選單（Paused）、暫停計時（對話、傳送、「要幫忙嗎？」視窗…）期間空檔、拒絕台詞的備用計時都不倒數
         if (gameManager == null || gameManager.State != GameState.Playing || gameManager.IsTimerPaused)
+        {
+            return;
+        }
+
+        if (_fallbackLineRemaining > 0f)
+        {
+            _fallbackLineRemaining -= Time.deltaTime;
+            if (_fallbackLineRemaining <= 0f)
+            {
+                ShowRefusalWarning();
+            }
+        }
+
+        if (!_isInEventGap)
         {
             return;
         }
@@ -344,7 +376,9 @@ public class PhaseManager : MonoBehaviour
         }
         if (_eventStage == EventStage.Refused)
         {
+            // 維持拒絕中（暴露值、補生成菸怪繼續，不重新開始），NPC 台詞與警告再出現一次
             Debug.Log("[PhaseManager] 事件 " + index + " 再次拒絕（維持拒絕中）。", this);
+            StartRefusalLines();
             return;
         }
         if (_eventStage != EventStage.Requested)
@@ -493,6 +527,34 @@ public class PhaseManager : MonoBehaviour
         StartPhase3();
     }
 
+    /// <summary>
+    /// 【只給 A 的 DevTools】直接開始／結束拒絕幫忙狀態（不檢查事件順序）。
+    /// 和真的拒絕一樣：IsHelpRefused、任務提示、OnHelpRefusedChanged、煙霧擴大與無法消除。
+    /// 只在遊戲進行中、第三階段以前有效。
+    /// </summary>
+    public void DevSetRefusal(bool refused)
+    {
+        GameManager gameManager = GameManager.Instance;
+        if (gameManager == null || !gameManager.DevMode)
+        {
+            return;
+        }
+        if (gameManager.State != GameState.Playing
+            || _currentPhase == GamePhase.Phase3 || _currentPhase == GamePhase.Ending)
+        {
+            Debug.Log("[PhaseManager] 開發者拒絕效果：只在遊戲進行中、第三階段以前有效（目前 " + _currentPhase + "）。", this);
+            return;
+        }
+        if (_isHelpRefused == refused)
+        {
+            Debug.Log("[PhaseManager] 開發者拒絕效果：已經是「" + (refused ? "拒絕中" : "沒有拒絕") + "」。", this);
+            return;
+        }
+
+        Debug.Log("[PhaseManager] 開發者" + (refused ? "開始" : "結束") + "拒絕效果。", this);
+        SetHelpRefused(refused);
+    }
+
     /// <summary>【只給 A 的 DevTools】把 40 秒空檔的剩餘秒數直接設成指定值（不用每次等 40 秒）。</summary>
     public void DevSetEventGapRemaining(float seconds)
     {
@@ -593,20 +655,63 @@ public class PhaseManager : MonoBehaviour
         }
 
         _isHelpRefused = refused;
+
+        // 【A15】拒絕開始：整張地圖的菸怪無法消除（煙霧半徑不擴大，倍率固定 1）；結束：全部恢復可以消除
+        SmokeSource.SetRefusalState(refused, 1f);
+
+        if (!refused)
+        {
+            // 接下任務：還沒顯示的警告不用再顯示
+            _isWaitingRefusalLine = false;
+            _fallbackLineRemaining = -1f;
+        }
+
+        OnHelpRefusedChanged?.Invoke(refused);
+
         if (refused)
         {
-            TaskHint.SetTask(RefusalHintSource, _refusalHint);
+            StartRefusalLines();
+        }
+    }
+
+    /// <summary>
+    /// 【B 的跟隨 NPC 呼叫】拒絕台詞講完了 → 顯示警告文字。只在拒絕中、正在等台詞時有效。
+    /// </summary>
+    public void NotifyRefusalNpcLineFinished()
+    {
+        if (!_isHelpRefused || !_isWaitingRefusalLine)
+        {
+            Debug.LogWarning("[PhaseManager] 現在沒有在等拒絕台詞，NotifyRefusalNpcLineFinished 已忽略。", this);
+            return;
+        }
+        ShowRefusalWarning();
+    }
+
+    /// <summary>A15：拒絕當下（含再拒絕一次）→ NPC 台詞；沒有人監聽時用 Toast 代替，幾秒後顯示警告。</summary>
+    private void StartRefusalLines()
+    {
+        _isWaitingRefusalLine = true;
+        _fallbackLineRemaining = -1f;
+        Debug.Log("[PhaseManager] 拒絕台詞：" + _refusalNpcLine, this);
+
+        if (OnRefusalNpcLine != null)
+        {
+            OnRefusalNpcLine.Invoke(_currentEventIndex, _refusalNpcLine);
         }
         else
         {
-            TaskHint.ClearTask(RefusalHintSource);
+            TaskHint.ShowToast(_refusalNpcLine, _fallbackNpcLineSeconds);
+            _fallbackLineRemaining = Mathf.Max(0.01f, _fallbackNpcLineSeconds);
         }
+    }
 
-        // TODO【A15】拒絕期間每 _refusalGrowInterval 秒倍率 +_refusalGrowStep（最多 _refusalMaxMultiplier），
-        //            並呼叫 SmokeSource.SetRefusalState(...)；接下任務後恢復 1。A11 只處理狀態與事件。
-        _refusalSmokeMultiplier = 1f;
-
-        OnHelpRefusedChanged?.Invoke(refused);
+    /// <summary>A15：顯示拒絕的警告文字（Toast）。</summary>
+    private void ShowRefusalWarning()
+    {
+        _isWaitingRefusalLine = false;
+        _fallbackLineRemaining = -1f;
+        Debug.Log("[PhaseManager] 拒絕警告：" + _refusalWarning, this);
+        TaskHint.ShowToast(_refusalWarning, _refusalWarningSeconds);
     }
 
     private void GrantTreasureMap()
@@ -650,7 +755,6 @@ public class PhaseManager : MonoBehaviour
         Phase3Checkpoint.SaveFirstEntry(CaptureSnapshot(gameManager));
 
         TaskHint.ClearTask(PhaseHintSource);
-        TaskHint.ClearTask(RefusalHintSource);
 
         SetPhase(GamePhase.Phase3);
 
@@ -777,12 +881,11 @@ public class PhaseManager : MonoBehaviour
     {
         _phase1TargetUnits = Mathf.Max(0, _phase1TargetUnits);
         _eventGapSeconds = Mathf.Max(0f, _eventGapSeconds);
-        // 拒絕的三個數值 A15 才會用到；先在這裡讀一次，避免「欄位沒有使用」的警告
-        _refusalGrowInterval = Mathf.Max(0.1f, _refusalGrowInterval);
-        _refusalGrowStep = Mathf.Max(0f, _refusalGrowStep);
-        _refusalMaxMultiplier = Mathf.Max(1f, _refusalMaxMultiplier);
+        _refusalWarningSeconds = Mathf.Max(0.5f, _refusalWarningSeconds);
+        _fallbackNpcLineSeconds = Mathf.Max(0.5f, _fallbackNpcLineSeconds);
         if (string.IsNullOrEmpty(_phase1Hint) || string.IsNullOrEmpty(_phase2Hint)
-            || string.IsNullOrEmpty(_refusalHint) || string.IsNullOrEmpty(_treasureMapHint))
+            || string.IsNullOrEmpty(_refusalNpcLine) || string.IsNullOrEmpty(_refusalWarning)
+            || string.IsNullOrEmpty(_treasureMapHint))
         {
             Debug.LogWarning("[PhaseManager] 有任務提示文字是空的。", this);
         }

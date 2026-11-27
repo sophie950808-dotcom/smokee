@@ -1,6 +1,13 @@
 # INTERFACES.md — 共用介面規格（v3.1／第二次檢核）
 
-> 更新日期：2026-11-26（A14）。依據 `docs/GDD_v3.1.md` 與 `docs/DECISIONS.md`。
+> 更新日期：2026-11-27（A15）。依據 `docs/GDD_v3.1.md` 與 `docs/DECISIONS.md`。
+>
+> **A15 更新內容（2026-11-27）**
+> - SmokeSource 完成（第 11 節）：🆕 `SetRadiusModifier`／`RemoveRadiusModifier`（key 倍率）、🆕 `OnRadiusChanged`、🆕 `ResetRefusalState`；有 `SmokeMonster` 的物件**自動** `AffectedByRefusal = true`
+> - **拒絕幫忙改版（A 決定，2026-11-27）**：煙霧半徑**不擴大**；改成 ① 拒絕期間暴露值**全場景統一每秒 +2** ② 🆕 `RefusalMonsterSpawner` 每 3 秒在玩家 2–10 公尺內補生成菸怪（透明度淡入，接任務後淡出刪除）③ NPC 台詞 → 警告文字。任務提示「煙霧好像越來越濃了……」**刪除**（第 4 節）
+> - PhaseManager：🆕 `OnRefusalNpcLine`、🆕 `NotifyRefusalNpcLineFinished()`、🆕 `IsWaitingRefusalLine`、🆕 `DevSetRefusal(bool)`；換場景自動清除拒絕狀態
+> - B12 要配合 SmokeMonster 的事項（第 17 節）：B **不用寫計時、不用多呼叫方法**
+> - 標 🆕A15 = 這次新增
 >
 > **A14 更新內容（2026-11-26）**
 > - BOSS 地面版完成：`BossController`（狀態機）、`BossHealth`（🆕 `Heal`、實作 `IBossDamageable`）、`BossAttack`（🆕 `ActiveRingCount`、`SmokeRingCooldownRemaining`、`StopAndClearAll`）、🆕 `BossSmokeRing`（第 14 節）
@@ -253,7 +260,7 @@ public interface IQteInteractable : IInteractable {
 
 ---
 
-## 4. `PhaseManager` `Scripts/Core/PhaseManager.cs`（擁有者：A，A11 完成；A14 BOSS 串接完成；A15 補拒絕煙霧倍率）
+## 4. `PhaseManager` `Scripts/Core/PhaseManager.cs`（擁有者：A，A11 完成；A14 BOSS 串接完成；A15 拒絕幫忙完成）
 
 整局流程的導演：教學 → 第一階段 → 三個事件 → 寶箱 → BOSS → 結局。和 GameManager 放在同一個物件上。
 **GameScene 的 GameManager 物件上要掛 PhaseManager 和 TutorialManager（B 在 GameScene 加）。**
@@ -270,7 +277,8 @@ public interface IQteInteractable : IInteractable {
 | 🆕A11 `bool IsEventInProgress { get; }` | 目前的事件已經接下、正在進行 |
 | `bool IsInEventGap { get; }` / `float EventGapRemaining { get; }` | 是否在 40 秒空檔、剩幾秒 |
 | `bool IsHelpRefused { get; }` | 玩家目前是否拒絕幫忙中 |
-| `float RefusalSmokeMultiplier { get; }` | 拒絕期間菸怪煙霧倍率（1 → 最多 2）。**A15 之前固定 1** |
+| `float RefusalSmokeMultiplier { get; }` | **A15 決定煙霧不擴大，固定 1**（保留名稱） |
+| 🆕A15 `bool IsWaitingRefusalLine { get; }` | 【開發者工具用】正在等 NPC 講完拒絕台詞 |
 | `bool HasTreasureMap { get; }` | 拿到藏寶圖了沒 |
 | `int GetMonsterUnits(MonsterGroup group, int indexInGroup)` | **B 的生成器呼叫**：這隻菸怪要給多少淨化值（見第 21 節） |
 
@@ -281,6 +289,7 @@ public interface IQteInteractable : IInteractable {
 | `event Action<int> OnEventGapStarted` | 參數：空檔編號 0/1（事件一後、事件二後）。**B 在街上生成 2 隻空檔菸怪** |
 | `event Action<int> OnEventGapEnded` | 40 秒到了（緊接著會發 `OnStoryEventRequested(下一個)`） |
 | `event Action<bool> OnHelpRefusedChanged` | true = 開始拒絕（NPC 開始跟著玩家、菸怪外觀改「打不掉」）；false = 接下任務，恢復 |
+| 🆕A15 `event Action<int, string> OnRefusalNpcLine` | 參數：事件編號、台詞。拒絕當下（**含再拒絕一次**）→ **B 讓跟著玩家的 NPC 說這句**，講完呼叫 `NotifyRefusalNpcLineFinished()`。⚠️ **一監聽就一定要回報**，不然警告文字不會出現；沒有人監聽時 PhaseManager 自己用 Toast 顯示台詞，3 秒後接著顯示警告 |
 | `event Action OnTreasureMapObtained` | 小地圖顯示寶箱（C）、寶箱發光（B 可選） |
 | `event Action OnBossIntroRequested` | **B 播 BOSS 登場動畫**（大煙怪衝上天、吸菸者散開）；進入第三階段時發出，重新挑戰時也會再發一次 |
 | `event Action OnRulesIntroRequested` | **C 顯示第三階段規則介紹視窗**（B 呼叫 `NotifyBossIntroFinished()` 之後） |
@@ -294,19 +303,29 @@ public interface IQteInteractable : IInteractable {
 | 🆕A11 `void NotifyTutorialFinished()` | A12 的 TutorialManager（現在用 F1 模擬） | 教學菸怪被打倒 → 第一階段 |
 | `void ReportEventAccepted(int index)` | B 的 Director | 事件一對話結束（強制）；事件二、三按「幫忙」；**拒絕後重新接受也是這個** |
 | `void ReportHelpRefused(int index)` | B 的 Director | 事件二、三按「拒絕」（可以重複拒絕；事件一呼叫會被忽略） |
+| 🆕A15 `void NotifyRefusalNpcLineFinished()` | B 的跟隨 NPC | 拒絕台詞講完 → PhaseManager 顯示警告文字（Toast）。只在拒絕中、等台詞時有效 |
 | `void ReportEventCompleted(int index)` | B 的 Director | 給完道具、傳送回街道之後（要先接受過） |
 | `void NotifyBossIntroFinished()` | B 的 BOSS 登場演出 | 登場動畫播完 → `OnRulesIntroRequested`。只在第三階段登場中有效 |
 | `void NotifyRulesIntroClosed()` | C 的 RulesIntroWindow | 玩家點擊關掉視窗 → `OnBossFightStarted` → `BossController.StartFight()`。只在規則視窗顯示中有效 |
 | `void NotifyEndingFinished()` | B 的結局演出 | 結局動畫播完 → 勝利結算（Ending 階段才有效） |
 | `void EnterPhase3()` | 【只給 A 的 TreasureChest】 | 寶箱打開（第二階段、拿到藏寶圖後才有效，只有第一次有效） |
-| `void DevJumpToPhase3()` / `void DevSetEventGapRemaining(float)` / 🆕A14 `void DevStartBossFight()` | 【只給 A 的 DevTools】 | 開發者快捷鍵（`DevStartBossFight`：跳過登場與規則視窗，直接開始 BOSS 戰） |
+| `void DevJumpToPhase3()` / `void DevSetEventGapRemaining(float)` / 🆕A14 `void DevStartBossFight()` / 🆕A15 `void DevSetRefusal(bool)` | 【只給 A 的 DevTools】 | 開發者快捷鍵（`DevStartBossFight`：跳過登場與規則視窗，直接開始 BOSS 戰；`DevSetRefusal`：不檢查事件順序，直接開始／結束拒絕狀態，效果和真的拒絕相同，第三階段以前有效） |
 
 - 編號不對、順序不對（例如還沒接受就完成、空檔中回報）的呼叫會被忽略並在 Console 印黃色警告。
 
 ### 規則
 - 第一階段：淨化 `PurificationUnits >= 200`（整數判斷）→ 進入 Phase2 → 任務提示「城市中還有很多需要幫助的人，快去看看吧！」→ `OnStoryEventRequested(0)`。
 - 40 秒空檔（Inspector 可調）在暫停選單、「暫停計時」期間都會停。
-- 拒絕：`IsHelpRefused`、`OnHelpRefusedChanged`、任務提示「煙霧好像越來越濃了……」（source `Refusal`），接下後清掉。**煙霧倍率（每 10 秒 +0.1、最多 2 倍）與 `SmokeSource.SetRefusalState` 由 A15 完成**。
+- 拒絕：`IsHelpRefused`、`OnHelpRefusedChanged`。🆕A15 **沒有任務提示**（原本的「煙霧好像越來越濃了……」刪除，source `Refusal` 不再使用）。
+- 🆕A15 拒絕幫忙（**全部由 A 處理，B12 不用寫計時**）：
+  - `ReportHelpRefused(n)` → `SmokeSource.SetRefusalState(true, 1)`：整張地圖的菸怪立刻無法消除。**煙霧半徑不擴大**（倍率固定 1）
+  - **暴露值**（ExposureSystem）：拒絕期間不管在不在煙霧裡，**整個場景統一每秒 +2**（Inspector `_refusalRiseRate`）。約 40 秒到 80（警示）、50 秒到 100（開始扣血）
+  - **補生成菸怪**（🆕 `RefusalMonsterSpawner`，掛在 GameManager 物件上）：每 3 秒在玩家周圍 2–10 公尺生成 1 隻，最多 15 隻；用**透明度淡入**（0.8 秒）。數值都是 Inspector 參數
+  - **台詞**：拒絕當下 ⇒ `OnRefusalNpcLine`（NPC 說「再這樣下去，整個城市都要被二手菸淹沒了啦……」）→ B 呼叫 `NotifyRefusalNpcLineFinished()` → `TaskHint.ShowToast("因為無情地拒絕幫忙，城市煙霧瀰漫……再這樣下去會有生命危險！", 4)`。文字是 PhaseManager 的 Inspector 欄位
+  - 暫停選單、任何「暫停計時」（對話、「要幫忙嗎？」視窗、傳送…）期間：暴露值、補生成、台詞的備用計時都停
+  - **再拒絕一次（對跟隨的 NPC 按 E 又按拒絕）**：暴露值、補生成繼續（不重新開始），**台詞與警告再出現一次**
+  - `ReportEventAccepted(n)`、進入第三階段 → `SetRefusalState(false, 1)`：所有菸怪可以消除；補生成的菸怪**停止冒煙、不能被打，淡出後刪除**；暴露值恢復一般規則
+  - PhaseManager 的 `Awake`、`OnDestroy` 呼叫 `SmokeSource.ResetRefusalState()`：重新開始、重新挑戰、回主選單後不會殘留
 - 事件三完成 → `HasTreasureMap = true`、`OnTreasureMapObtained`、任務提示「到吸菸室旁的寶箱看看」。
 - 進入第三階段（`EnterPhase3`）：教學與三個事件視為完成 → `GameManager.LockPurificationForPhase3()`（60%）→ **第一次進入時存下快照**（第 22 節）→ 清掉 `Phase` 任務提示 → `OnPhaseChanged(Phase3)` → `BossController.BeginIntro()` → `OnBossIntroRequested`。
 - 🆕A14 BOSS 戰開場順序固定：登場（等 B 的 `NotifyBossIntroFinished`）→ 規則視窗（等 C 的 `NotifyRulesIntroClosed`）→ 戰鬥。**沒有人接登場或規則視窗時不會自動跳過**（印黃色警告，停在那一步；開發者按 9）。
@@ -405,25 +424,43 @@ public static class TaskHint {
 | `Exposure` / `VisualExposure` / `IsWarning` / `IsMaxed` / `SmokeSeconds` / 三個事件 | 不變（`VisualExposure` 現在永遠等於 `Exposure`） |
 | 🆕 `void ResetExposure()` | 【只給 GameManager】教學結束、重新挑戰 |
 | ~~`RiseMultiplier`、`IsVisualSuppressed`~~ | ✅A13 已刪除 |
+| 🆕A15 `float RefusalRiseRate { get; }` / `bool IsRefusalRising { get; }` | 拒絕幫忙期間全場統一的每秒上升量（預設 2）／現在是否正在用它（開發者工具用） |
 
 - 「暫停計時」期間暴露值不變。
+- 🆕A15 拒絕幫忙期間（`PhaseManager.IsHelpRefused`）：不管在不在煙霧裡，**統一每秒 +2**（取代範圍內上升與範圍外下降）。`SmokeSeconds` 仍然只算真的在煙霧範圍內的秒數。
 
 ## 11. `SmokeSource` `Scripts/Monsters/SmokeSource.cs`（擁有者：A，A15 完成）
 
 | 成員 | 說明 |
 |---|---|
 | `static IReadOnlyList<SmokeSource> All` | 不變 |
-| `float Radius { get; set; }` | **讀取 = 實際半徑**（基本半徑 × 倍率 × 拒絕倍率）；設定 = 設基本半徑（相容舊程式） |
-| 🆕 `float BaseRadius { get; set; }` | Inspector 的基本半徑。預設改成 4（BOSS 7） |
-| 🆕 `float RadiusMultiplier { get; set; }` | 這個來源自己的倍率，預設 1 |
-| 🆕 `bool AffectedByRefusal { get; set; }` | **菸怪要設成 true**（B 的 SmokeMonster 在 Awake 設定）；開場朋友、吸菸 NPC、BOSS 是 false |
-| 🆕 `bool IsIndestructible { get; }` | 拒絕幫忙中而且 `AffectedByRefusal` → true。**B 的 SmokeMonster.TakeHit 看到 true 就不算這一下** |
-| 🆕 `static float RefusalMultiplier { get; }` / `static bool RefusalActive { get; }` | |
-| 🆕 `static event Action<bool> OnRefusalStateChanged` | B 換「打不掉」的外觀用 |
-| 🆕 `static void SetRefusalState(bool active, float multiplier)` | 【只給 PhaseManager】 |
+| `float Radius { get; set; }` | **讀取 = 實際半徑** = `BaseRadius` × `RadiusMultiplier` × 所有 key 倍率相乘 ×（`AffectedByRefusal` 而且拒絕中時）`RefusalMultiplier`。**ExposureSystem、Gizmos 都用這個**；設定 = 設基本半徑（相容舊程式） |
+| `float BaseRadius { get; set; }` | Inspector 的基本半徑。小菸怪、吸菸 NPC 4；BOSS 7 |
+| `float RadiusMultiplier { get; set; }` | Inspector 上這個來源自己的倍率，預設 1。**程式要改倍率請用下面的 key 版**，避免互相覆蓋 |
+| 🆕A15 `void SetRadiusModifier(string key, float multiplier)` / `void RemoveRadiusModifier(string key)` | 用自己的 key 加倍率（和 `PlayerController.SetSpeedModifier` 一樣），多個 key **相乘**、不會互相覆蓋。會影響暴露值，**加新的 key 前先問 A** |
+| 🆕A15 `event Action<float> OnRadiusChanged` | 這個來源的**實際半徑**改變時（參數：新的實際半徑）。**B 用「實際半徑 ÷ `BaseRadius`」縮放煙霧粒子**。剛出生時不觸發（請在 Start 讀一次 `Radius`）；停用期間變了的話，重新啟用時補發 |
+| `bool AffectedByRefusal { get; set; }` | **菸怪是 true**。🆕A15 同一個物件上有 `SmokeMonster` 時，SmokeSource 的 Awake **自動設成 true**（B 自己設也可以）；開場朋友、吸菸 NPC、BOSS、煙霧區是 false（預設） |
+| `bool IsIndestructible { get; }` | 拒絕幫忙中而且 `AffectedByRefusal` → true。**B 的 SmokeMonster.TakeHit 看到 true 就不算這一下** |
+| `static float RefusalMultiplier { get; }` / `static bool RefusalActive { get; }` | 拒絕倍率（沒有拒絕時 1）／是否拒絕中 |
+| `static event Action<bool> OnRefusalStateChanged` | 開始（true）／結束（false）拒絕時。B 換「打不掉」的外觀用。**static 事件：OnDisable 一定要取消監聽** |
+| `static void SetRefusalState(bool active, float multiplier)` | 【只給 PhaseManager】受影響的來源各自觸發 `OnRadiusChanged`，再觸發 `OnRefusalStateChanged`（狀態有變時） |
+| 🆕A15 `static void ResetRefusalState()` | 【只給 PhaseManager】換場景時清回初始值，**不觸發事件** |
 | `bool IsEmitting { get; set; }` | 不變 |
 
-- 掛在：開場朋友、每一隻菸怪、吸菸 NPC、BOSS、菸炮落地的煙霧區。
+- 掛在：開場朋友、每一隻菸怪、吸菸 NPC、BOSS、天上菸圈落地的煙霧區。
+- 🆕A15 **「無法消除」只影響菸怪**（`AffectedByRefusal`）。拒絕中才生成的菸怪，一出生就無法消除（每次讀取時才算，不用另外處理）。拒絕時煙霧半徑不擴大（`RefusalMultiplier` 固定 1）；key 倍率與 `OnRadiusChanged` 保留給之後的機制。
+
+### 🆕A15 `RefusalMonsterSpawner` `Scripts/Core/RefusalMonsterSpawner.cs`（擁有者：A）
+| 成員 | 說明 |
+|---|---|
+| `static RefusalMonsterSpawner Instance` | |
+| `int ActiveCount { get; }` / `int MaxMonsters { get; }` / `float NextSpawnRemaining { get; }` | 開發者工具用 |
+
+- **B 在 GameScene 的 GameManager 物件上加這個元件**，把 `SmokeMonster_Small.prefab` 拖進「菸怪 Prefab」。
+- 生成位置：玩家周圍隨機（依面積平均），往下打射線找地面；高度差 > 1.5 公尺（屋頂）、周圍 0.6 公尺有東西、和玩家之間有牆 → 換位置，試 10 次都不行就這次不生成。
+- 淡入淡出：遊戲執行中把**這隻菸怪的材質複製一份、暫時切成透明**，調 `_BaseColor`（或 `_Color`、`_TintColor`）的透明度；淡入完成**換回 B 原本的材質**。B 的 Prefab、材質檔不會被修改。⚠️ B 要換菸怪的初始外觀（例如「打不掉」的材質）請在 **Awake／OnEnable** 換，不要在 Start 換（淡入開始時會記下當時的材質，淡入結束換回去）。
+- 補生成的菸怪就是一般的 B 菸怪（`SmokeMonster.All` 也看得到）；接下任務後淡出刪除，**不會被打倒，不加淨化**（B12 的 `IsIndestructible` 檢查完成後才成立）。
+- Scene 視窗 Gizmos：灰色 = 實際半徑（無法消除時偏紅）；選取時橘色 = 實際半徑、淡藍色 = 基本半徑（兩者不同時才畫）。
 
 ## 12. `PlayerEffects` `Scripts/Player/PlayerEffects.cs`（擁有者：A，A13 完成；掛在 Player 上）
 
@@ -645,8 +682,13 @@ public static class ScoreCalculator {
 | 🆕 `event Action<SmokeMonster> OnDefeated` / `static event Action<SmokeMonster> OnAnyDefeated` | 被擊敗 |
 | ⚠️ `float ProgressValue` | 改用 `PurificationUnits`（B 的檔案，A 不會動，B10 自己移除） |
 - 被擊敗：`GameManager.Instance.AddPurification(PurificationUnits)`，並停止 SmokeSource。
-- `TakeHit` 時若 `SmokeSource.IsIndestructible` 為 true → 播「打不掉」回饋，不算次數。
-- Awake 時設 `SmokeSource.AffectedByRefusal = true`。
+- 🆕A15 B12 拒絕幫忙要配合的事（**暴露值、補生成、計時、恢復都在 A，B 不用寫計時**）：
+  1. `TakeHit` 一開始若 `SmokeSource.IsIndestructible` 為 true → 播「打不動」回饋（例如彈開、灰色閃一下），**不算次數**、直接 return
+  2. 監聽 `SmokeSource.OnRefusalStateChanged` 換「打不掉」外觀；出生時（**Awake／OnEnable**，不要在 Start）讀 `SmokeSource.RefusalActive` 決定初始外觀；OnDisable 取消監聽
+  3. `AffectedByRefusal` 由 SmokeSource 自動設定（B 在 Awake 設 true 也可以，不衝突）
+  4. 跟隨 NPC：監聽 `PhaseManager.OnRefusalNpcLine` 說台詞，講完呼叫 `NotifyRefusalNpcLineFinished()`
+  5. GameScene：GameManager 物件加 `RefusalMonsterSpawner`、拖入 `SmokeMonster_Small.prefab`
+  6. 煙霧半徑不擴大，**不用**做粒子縮放（`OnRadiusChanged` 留著，之後有需要再接）
 - 行為：出生點半徑 3 公尺內遊走、每秒 1 公尺，不追擊、不攻擊。
 
 ### `SmokeMonsterSpawner`（擁有者：B，B10）
@@ -773,12 +815,13 @@ public static class ScoreCalculator {
     ⇒ OnEventGapEnded(0) ⇒ OnStoryEventRequested(1)
 [B] Director：女孩跑來 → 求救對話 → HelpPromptUI.Show
     └ 拒絕 → PhaseManager.ReportHelpRefused(1)
-        [A] ⇒ OnHelpRefusedChanged(true)；TaskHint「煙霧好像越來越濃了……」
-            （A15）SmokeSource.SetRefusalState(true, 1.0) ⇒ SmokeSource.OnRefusalStateChanged(true)（B：打不掉的外觀）
-            （A15）每 10 秒倍率 +0.1（最多 2）
-        [B] 女孩跟著玩家；玩家對她按 E → 再跳 HelpPromptUI（可以再拒絕）
+        [A] SmokeSource.SetRefusalState(true, 1) ⇒ SmokeSource.OnRefusalStateChanged(true)（B：打不掉的外觀）
+            ⇒ OnHelpRefusedChanged(true)（B：女孩跟著玩家）
+            ⇒ OnRefusalNpcLine(1, 台詞)（B：女孩說話 → NotifyRefusalNpcLineFinished()）→ Toast 警告
+            暴露值全場每秒 +2；RefusalMonsterSpawner 每 3 秒在玩家附近淡入 1 隻菸怪（最多 15）
+        [B] 玩家對女孩按 E → 再跳 HelpPromptUI（再拒絕 → ReportHelpRefused(1) → 台詞與警告再一次）
     └ 幫忙 → PhaseManager.ReportEventAccepted(1)
-        [A] ⇒ OnHelpRefusedChanged(false)；清掉拒絕提示；（A15）SmokeSource.SetRefusalState(false, 1)
+        [A] SmokeSource.SetRefusalState(false, 1) ⇒ OnHelpRefusedChanged(false)；補生成的菸怪淡出刪除；暴露值恢復一般規則
         [B] 傳送 → …（同事件一）→ Grant(NicotineGum) → ReportEventCompleted(1)
 [A] ⇒ OnEventGapStarted(1) … 40 秒 ⇒ OnStoryEventRequested(2)
 [B] 老奶奶事件（流程同事件二）→ ReportEventCompleted(2)
@@ -847,7 +890,8 @@ public static class ScoreCalculator {
 | 第一階段 | A PhaseManager | `Phase` | 消滅所有的煙怪吧！ |
 | 第一 → 第二階段 | A PhaseManager | `Phase` | 城市中還有很多需要幫助的人，快去看看吧！ |
 | 事件中各步驟 | B Director | `StoryEvent` | `StoryEventData` 的 FollowHint／ClearHint／InteractHint |
-| 拒絕幫忙中 | A PhaseManager | `Refusal` | 煙霧好像越來越濃了…… |
+| 拒絕幫忙中 | — | — | 🆕A15 **刪除**（沒有任務提示） |
+| 拒絕的警告（NPC 講完台詞後） | A PhaseManager | Toast | 因為無情地拒絕幫忙，城市煙霧瀰漫……再這樣下去會有生命危險！ |
 | 拿到藏寶圖 | A PhaseManager | `Phase` | 到吸菸室旁的寶箱看看 |
 | BOSS 戰 | A BossController | `Boss` | 捏熄吸菸者的菸，打倒大煙怪！／（Final）打倒大煙怪！ |
 | 短暫提示 | A PlayerEffects／TreasureChest | Toast | 第三階段才能使用／路上好像還有還沒消除的煙怪 |
@@ -894,7 +938,9 @@ public static class ScoreCalculator {
 | 菸怪淨化值：教學／第一階段／空檔／事件 | 0／40 ×5／25 ×4／33、33、34 ×3 | PhaseManager（`GetMonsterUnits`；開始時檢查總和 = 600） |
 | 第一階段目標／寶箱門檻 | 200／600 | PhaseManager、TreasureChest |
 | 事件間隔 | 40 秒 | PhaseManager |
-| 拒絕煙霧：間隔／每次增加／上限 | 10 秒／0.1／2 | PhaseManager |
+| 拒絕：暴露值全場每秒上升 | 2 | ExposureSystem（`_refusalRiseRate`） |
+| 拒絕：補生成間隔／上限／距離／淡入／淡出 | 3 秒／15 隻／2–10 公尺／0.8／0.8 秒 | RefusalMonsterSpawner |
+| 拒絕：NPC 台詞／警告文字／警告秒數／沒人接台詞時台詞顯示秒數 | 見第 4 節／4／3 | PhaseManager |
 | 教學：走到目標判定半徑／靠近菸怪半徑 | 1.5／3【暫定】 | TutorialManager |
 | 菸怪：受擊次數／遊走半徑／速度 | 3／3／1 | SmokeMonster（B） |
 | 近戰：距離／角度／冷卻 | 2／90／0.5 | PlayerAttack |
